@@ -6,5 +6,5 @@ package name.kan.hal1.core.sensor.temperature;
  */
 public interface TemperatureProcessor
 {
-	void recordTemperature(long logicalDevice, int milliCelsius);
+	void recordTemperature(int deviceId, int milliCelsius);
 }

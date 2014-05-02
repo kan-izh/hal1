@@ -1,0 +1,3 @@
+[submodule "auno/nanopb"]
+	path = auno/nanopb
+	url = https://code.google.com/p/nanopb

@@ -6,13 +6,13 @@ message Thermometer
 	{
 		LM35 = 0;
 	}
-	required string deviceId = 1;
+	required int32 deviceId = 1;
 	required Type type = 2;
 	required int32 value = 3;
 }
 
 message Signals
 {
-	required string deviceId = 1;
+	required int32 deviceId = 1;
 	repeated Thermometer thermometers = 2;
 }
