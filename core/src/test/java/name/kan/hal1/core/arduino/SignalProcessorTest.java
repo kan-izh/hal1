@@ -23,8 +23,8 @@ import static org.mockito.Mockito.when;
  */
 public class SignalProcessorTest
 {
-	private static final int ARD1_ROOM1_DEVICE_ID = 123;
-	private static final int ARD1_ROOM2_DEVICE_ID = 234;
+	private static final Arduino.Thermometer.Device ARD1_ROOM1_DEVICE_ID = Arduino.Thermometer.Device.Test;
+	private static final Arduino.Thermometer.Device ARD1_ROOM2_DEVICE_ID = Arduino.Thermometer.Device.Desk;
 
 	@InjectMocks SignalProcessor testObject;
 
@@ -55,17 +55,17 @@ public class SignalProcessorTest
 	private byte[] testSignals()
 	{
 		final Arduino.Thermometer t1 = Arduino.Thermometer.newBuilder()
-				.setDeviceId(ARD1_ROOM1_DEVICE_ID)
+				.setDevice(ARD1_ROOM1_DEVICE_ID)
 				.setType(Arduino.Thermometer.Type.LM35)
 				.setValue(35)
 				.build();
 		final Arduino.Thermometer t2 = Arduino.Thermometer.newBuilder()
-				.setDeviceId(ARD1_ROOM2_DEVICE_ID)
+				.setDevice(ARD1_ROOM2_DEVICE_ID)
 				.setType(Arduino.Thermometer.Type.LM35)
 				.setValue(36)
 				.build();
 		final Arduino.Signals signals = Arduino.Signals.newBuilder()
-				.setDeviceId(42)
+				.setDevice(Arduino.Signals.Device.Auno)
 				.addThermometers(t1)
 				.addThermometers(t2)
 				.build();

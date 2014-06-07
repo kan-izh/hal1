@@ -12,7 +12,7 @@ unsigned long time = 0;
 bool thermometersList(pb_ostream_t *stream, const pb_field_t *field, void * const *arg)
 {
     name_kan_hal1_arduino_Thermometer thermometer;
-    thermometer.deviceId = 1;
+    thermometer.device = name_kan_hal1_arduino_Thermometer_Device_Desk;
     thermometer.type = name_kan_hal1_arduino_Thermometer_Type_LM35;
     thermometer.value = analogRead(0);
 
@@ -33,7 +33,7 @@ bool serial_writer(pb_ostream_t *stream, const uint8_t *buf, size_t count)
 void sendSignals()
 {
     name_kan_hal1_arduino_Signals result;
-    result.deviceId = 10;
+    result.device = name_kan_hal1_arduino_Signals_Device_Auno;
     result.thermometers.funcs.encode = thermometersList;
     result.thermometers.arg = NULL;
     pb_ostream_t os;

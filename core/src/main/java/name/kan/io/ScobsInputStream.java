@@ -43,21 +43,13 @@ public class ScobsInputStream extends InputStream
 
 	private int inRead() throws IOException
 	{
-/*
-		if(next != -1)
-		{
-			final int next = this.next;
-			this.next = -1;
-			return next;
-		}
-*/
 		final int read = in.read();
 		if(read == 0)
 			throw new StreamCorruptedException("Unexpected zero");
 		return read;
 	}
 
-	private void setStuff(final byte read) throws IOException
+	private void setStuff(final byte read)
 	{
 		putZero = read < 0;
 		stuff = read < 0 ? (byte) -read : read;

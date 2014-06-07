@@ -2,17 +2,26 @@ package name.kan.hal1.arduino;
 
 message Thermometer
 {
+	enum Device
+	{
+		Test = 0;
+		Desk = 1;
+	}
 	enum Type
 	{
 		LM35 = 0;
 	}
-	required int32 deviceId = 1;
+	required Device device = 1;
 	required Type type = 2;
 	required int32 value = 3;
 }
 
 message Signals
 {
-	required int32 deviceId = 1;
+	enum Device
+	{
+		Auno = 0;
+	}
+	required Device device = 1;
 	repeated Thermometer thermometers = 2;
 }

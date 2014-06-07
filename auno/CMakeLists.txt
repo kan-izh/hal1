@@ -2,6 +2,10 @@ cmake_minimum_required(VERSION 2.6)
 
 Project(ArduinoCode)
 
-add_subdirectory(libarduinocore)
-add_subdirectory(firmware)
+enable_testing()
 
+add_subdirectory(libarduinocore)
+add_subdirectory(lib)
+add_subdirectory(auno)
+add_subdirectory(../3rd/gtest-1.7.0 gtest)
+add_subdirectory(test)

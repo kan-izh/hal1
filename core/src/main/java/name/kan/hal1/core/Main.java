@@ -35,9 +35,9 @@ public class Main
 	private static class DumpTemperature implements TemperatureProcessor
 	{
 		@Override
-		public void recordTemperature(final int deviceId, final int milliCelsius)
+		public void recordTemperature(final Arduino.Thermometer.Device device, final int milliCelsius)
 		{
-			System.out.println("deviceId = " + deviceId + ", " + (milliCelsius / 1000.0));
+			System.out.println("device = " + device + ", " + (milliCelsius / 1000.0));
 		}
 	}
 

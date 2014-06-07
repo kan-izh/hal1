@@ -41,7 +41,7 @@ public class SignalProcessor
 			final Arduino.Thermometer.Type type = thermometer.getType();
 			final TemperatureConverter converter = converters.get(type);
 			final int milliCelsius = converter.rawToMilliCelsius(thermometer.getValue());
-			dao.recordTemperature(thermometer.getDeviceId(), milliCelsius);
+			dao.recordTemperature(thermometer.getDevice(), milliCelsius);
 		}
 	}
 }

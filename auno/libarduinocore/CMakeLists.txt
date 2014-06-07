@@ -5,7 +5,6 @@ add_library (arduinocore
 	HardwareSerial.cpp
 	cpp.c
 	Print.cpp
-	WString.cpp
 	wiring.c
 	wiring_shift.c
 	WInterrupts.c
