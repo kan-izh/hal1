@@ -1,12 +1,13 @@
 include(${ArduinoCode_SOURCE_DIR}/arduino_diecimila_crosscompile.cmake)
 
-SET(NANOPB_GEN_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated-sources/nanopb")
 file(MAKE_DIRECTORY ${NANOPB_GEN_DIR})
 include_directories(${ArduinoCode_SOURCE_DIR}/libarduinocore)
+include_directories(${ArduinoCode_SOURCE_DIR}/lib)
 include_directories(${NANOPB_DIR} ${NANOPB_GEN_DIR})
 LINK_DIRECTORIES(${ArduinoCode_SOURCE_DIR}/libarduinocore)
 
 link_libraries(arduinocore)
+link_libraries(lib)
 
 add_custom_command(
 	OUTPUT
@@ -22,6 +23,8 @@ add_custom_command(
 
 add_executable(firmware
 	firmware.cpp
+	SignalPublisher.h
+	SignalPublisher.cpp
 	${NANOPB_DIR}/pb_decode.h
 	${NANOPB_DIR}/pb_decode.c
 	${NANOPB_DIR}/pb_encode.h

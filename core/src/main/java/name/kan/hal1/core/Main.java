@@ -1,16 +1,19 @@
 package name.kan.hal1.core;
 
 import jssc.SerialPort;
-import jssc.SerialPortException;
-import jssc.SerialPortTimeoutException;
 import name.kan.hal1.arduino.Arduino;
 import name.kan.hal1.core.arduino.SignalProcessor;
 import name.kan.hal1.core.sensor.temperature.LinearTemperatureConverter;
 import name.kan.hal1.core.sensor.temperature.TemperatureConverter;
 import name.kan.hal1.core.sensor.temperature.TemperatureProcessor;
+import name.kan.io.ScobsInputStream;
+import name.kan.io.SerialInputStream;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -20,6 +23,9 @@ import java.util.Map;
  */
 public class Main
 {
+
+	private static final Logger log = LoggerFactory.getLogger(Main.class);
+
 	public static void main(String[] args) throws Exception
 	{
 		final Map<Arduino.Thermometer.Type, TemperatureConverter> map = new HashMap<>();
@@ -29,56 +35,58 @@ public class Main
 		final SerialPort serialPort = new SerialPort("/dev/ttyACM3");
 		if(!serialPort.openPort())
 			throw new IOException("Cannot open port");
-		processor.process(new SerialInputStream(serialPort));
+		final SerialInputStream sis = new SerialInputStream(serialPort);
+		while(true)
+		{
+			alignStream(sis);
+			try
+			{
+				while(true)
+				{
+					final ByteArrayOutputStream baos = readPacket(sis);
+					final ScobsInputStream scis = new ScobsInputStream(new ByteArrayInputStream(baos.toByteArray()));
+					processor.process(Arduino.Signals.parseFrom(scis));
+				}
+			}
+			catch(IOException e)
+			{
+				log.warn("IO problem: {}", e.getMessage());
+			}
+		}
+	}
+
+	private static ByteArrayOutputStream readPacket(final SerialInputStream sis) throws IOException
+	{
+		final ByteArrayOutputStream baos = new ByteArrayOutputStream();
+		while(true)
+		{
+			final int read = sis.read();
+			if(read != 0)
+				baos.write(read);
+			else
+				return baos;
+		}
+	}
+
+	private static void alignStream(final SerialInputStream sis) throws IOException
+	{
+		while(true)
+		{
+			final int read = sis.read();
+			if(read == 0)
+				return;
+		}
 	}
 
 	private static class DumpTemperature implements TemperatureProcessor
 	{
+		int cnt;
 		@Override
 		public void recordTemperature(final Arduino.Thermometer.Device device, final int milliCelsius)
 		{
-			System.out.println("device = " + device + ", " + (milliCelsius / 1000.0));
+			if(cnt++ % 60000 == 0)
+				log.info("Measure \u2116{}, Device {}: {}\u00B0C", cnt, device, (milliCelsius / 1000.0));
 		}
 	}
 
-	private static class SerialInputStream extends InputStream
-	{
-		private final SerialPort serialPort;
-
-		public SerialInputStream(final SerialPort serialPort)
-		{
-			this.serialPort = serialPort;
-		}
-
-		@Override
-		public int read(final byte[] b, final int off, final int len) throws IOException
-		{
-			try
-			{
-				final byte[] bytes = serialPort.readBytes(len, 5000);
-			} catch(SerialPortException e)
-			{
-				e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
-			} catch(SerialPortTimeoutException e)
-			{
-			}
-			return super.read(b, off, len);    //To change body of overridden methods use File | Settings | File Templates.
-		}
-
-		@Override
-		public int read() throws IOException
-		{
-			try
-			{
-				final byte[] bytes = serialPort.readBytes(1, 1000);
-				return bytes[0];
-			} catch(SerialPortException e)
-			{
-				throw new IOException(e);
-			} catch(SerialPortTimeoutException e)
-			{
-				return -1;
-			}
-		}
-	}
 }

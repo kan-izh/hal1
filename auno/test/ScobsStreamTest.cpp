@@ -1,44 +1,8 @@
 #include "gtest/gtest.h"
 #include "ScobsStream.h"
-#include <queue>
+#include "MockStream.h"
 
 #define SIZE_OF_ARRAY(arr) sizeof(arr) / sizeof(*arr)
-
-class MockStream : public Stream
-{
-public:
-	std::vector<uint8_t> written;
-	std::queue<uint8_t> input;
-	virtual int available()
-	{
-		return input.size();
-	}
-
-	virtual int read()
-	{
-		if(input.empty())
-			return -1;
-		uint8_t b = input.front();
-		input.pop();
-		return b;
-
-	}
-
-	virtual int peek()
-	{
-		return input.front();
-	}
-
-	virtual void flush()
-	{
-	}
-
-	virtual size_t write(uint8_t b)
-	{
-		written.push_back(b);
-		return 1;
-	}
-};
 
 class ScobsStreamTest : public ::testing::Test
 {

@@ -46,7 +46,7 @@ public class SignalProcessorTest
 	public void testProcess() throws Exception
 	{
 		final ByteArrayInputStream is = new ByteArrayInputStream(testSignals());
-		testObject.process(is);
+		testObject.process(Arduino.Signals.parseFrom(is));
 		verify(dao).recordTemperature(ARD1_ROOM1_DEVICE_ID, 17089);
 		verify(dao).recordTemperature(ARD1_ROOM2_DEVICE_ID, 17578);
 

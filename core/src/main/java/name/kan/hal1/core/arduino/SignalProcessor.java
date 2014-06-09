@@ -6,7 +6,6 @@ import name.kan.hal1.core.sensor.temperature.TemperatureProcessor;
 
 import javax.inject.Inject;
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
 
@@ -28,9 +27,8 @@ public class SignalProcessor
 		this.converters = converters;
 	}
 
-	public void process(InputStream is) throws IOException
+	public void process(final Arduino.Signals signals) throws IOException
 	{
-		final Arduino.Signals signals = Arduino.Signals.parseFrom(is);
 		processThermometers(signals.getThermometersList());
 	}
 
