@@ -1,3 +1,6 @@
 [submodule "auno/nanopb"]
 	path = 3rd/nanopb
 	url = https://code.google.com/p/nanopb
+[submodule "3rd/RF24"]
+	path = 3rd/RF24
+	url = https://github.com/stanleyseow/RF24.git

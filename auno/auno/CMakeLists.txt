@@ -1,44 +1,36 @@
 include(${ArduinoCode_SOURCE_DIR}/arduino_diecimila_crosscompile.cmake)
 
-file(MAKE_DIRECTORY ${NANOPB_GEN_DIR})
+include(${ArduinoCode_SOURCE_DIR}/pb.cmake)
+
+set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "")
+set(CMAKE_SHARED_LIBRARY_LINK_CXX_FLAGS "")
+
 include_directories(${ArduinoCode_SOURCE_DIR}/libarduinocore)
 include_directories(${ArduinoCode_SOURCE_DIR}/lib)
-include_directories(${NANOPB_DIR} ${NANOPB_GEN_DIR})
+include_directories(${RF24_DIR})
 LINK_DIRECTORIES(${ArduinoCode_SOURCE_DIR}/libarduinocore)
+ADD_DEFINITIONS(-DARDUINO=100)
 
 link_libraries(arduinocore)
 link_libraries(lib)
 
-add_custom_command(
-	OUTPUT
-		${NANOPB_GEN_DIR}/arduino.pb.c
-		${NANOPB_GEN_DIR}/arduino.pb.h
-	DEPENDS ${ArduinoCode_SOURCE_DIR}/../interface/protobuf/arduino.proto
-	WORKING_DIRECTORY ${ArduinoCode_SOURCE_DIR}/../interface/protobuf
-	COMMAND protoc
-		--nanopb_out=${NANOPB_GEN_DIR}
-		--plugin=protoc-gen-nanopb=${NANOPB_DIR}/generator/protoc-gen-nanopb
-		arduino.proto
-)
-
-add_executable(firmware
+add_executable(firmware.elf
+	${pb_sources}
 	firmware.cpp
 	SignalPublisher.h
 	SignalPublisher.cpp
-	${NANOPB_DIR}/pb_decode.h
-	${NANOPB_DIR}/pb_decode.c
-	${NANOPB_DIR}/pb_encode.h
-	${NANOPB_DIR}/pb_encode.c
-	${NANOPB_GEN_DIR}/arduino.pb.c
-	${NANOPB_GEN_DIR}/arduino.pb.h
+	rf-settings.h
+
+	${RF24_DIR}/RF24.cpp
+	${RF24_DIR}/RF24.h
 )
 
 add_custom_command(
 	OUTPUT firmware.hex
-	COMMAND "${AVR_OBJCOPY}" -O ihex -R .eeprom firmware firmware.hex
-	DEPENDS firmware
+	COMMAND "${AVR_OBJCOPY}" -O ihex -R .eeprom firmware.elf -v firmware.hex
+	DEPENDS firmware.elf
 )
-add_custom_target(hex
+add_custom_target(firmware
 	ALL
 	VERBATIM
 	DEPENDS firmware.hex

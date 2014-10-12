@@ -2,6 +2,7 @@ package name.kan.io;
 
 import jssc.SerialPort;
 import jssc.SerialPortException;
+import jssc.SerialPortTimeoutException;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -24,11 +25,25 @@ public class SerialInputStream extends InputStream
 	{
 		try
 		{
-			return serialPort.readBytes(1)[0];
+			return serialPort.readBytes(1, 10000)[0];
+		} catch(SerialPortException e)
+		{
+			throw new CommunicationException(e);
+		} catch(SerialPortTimeoutException e)
+		{
+			throw new IoTimeoutException(e);
+		}
+	}
+
+	@Override
+	public void close() throws IOException
+	{
+		try
+		{
+			serialPort.closePort();
 		} catch(SerialPortException e)
 		{
 			throw new IOException(e);
 		}
 	}
-
 }

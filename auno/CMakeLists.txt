@@ -5,7 +5,7 @@ Project(ArduinoCode)
 enable_testing()
 
 SET(NANOPB_DIR ${ArduinoCode_SOURCE_DIR}/../3rd/nanopb)
-SET(NANOPB_GEN_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated-sources/nanopb")
+SET(RF24_DIR ${ArduinoCode_SOURCE_DIR}/../3rd/RF24)
 
 add_subdirectory(libarduinocore)
 add_subdirectory(lib)
