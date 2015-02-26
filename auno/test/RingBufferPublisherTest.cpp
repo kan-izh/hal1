@@ -78,3 +78,16 @@ TEST(RingBufferPublisherTest, sendData)
 	ASSERT_EQ(1U, hwmCast(actual.data()));
 	ASSERT_EQ(42, actual[5]);
 }
+
+TEST(RingBufferPublisherTest, heartbeat)
+{
+	MockRingBufferOutput output;
+	TestSubject testSubject(&output);
+	testSubject.heartbeat();
+	ASSERT_EQ(1U, testSubject.getHighWatermark());
+	ASSERT_EQ(1U, output.written.size());
+	const std::vector<uint8_t> &actual = output.written[0];
+	ASSERT_EQ(32U, actual.size());
+	ASSERT_EQ(1U, hwmCast(actual.data()));
+	ASSERT_EQ(0, actual[5]);
+}
