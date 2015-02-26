@@ -1,0 +1,4 @@
+#!/bin/bash
+DIR=$(dirname $(readlink -f $0))
+rsync --progress -rl --delete-after --safe-links pi@raspberrypi.local:/{lib,usr/lib} $DIR/rootfs
+
