@@ -5,7 +5,7 @@
 #include "RingBufferPublisher.h"
 
 //after build -- to flash
-//avrdude -V -c arduino -p m328p -b 115200 -P /dev/ttyACM3 -U flash:w:.build/auno/firmware.hex
+//avrdude -V -c arduino -p m328p -b 115200 -P /dev/ttyACM3 -U flash:w:.build/firmware/firmware.hex
 
 struct RF24Output : RingBufferOutput
 {

@@ -6,7 +6,7 @@ SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall")
 include_directories(${gtest_SOURCE_DIR}/include)
 include_directories(${ArduinoCode_SOURCE_DIR}/libarduinocore)
 include_directories(${ArduinoCode_SOURCE_DIR}/lib)
-include_directories(${ArduinoCode_SOURCE_DIR}/auno)
+include_directories(${ArduinoCode_SOURCE_DIR}/firmware)
 
 set(ScobsStreamTest_sources
 	${ArduinoCode_SOURCE_DIR}/libarduinocore/Print.cpp
@@ -23,7 +23,7 @@ set(SignalPublisherTest_sources
 	${pb_sources}
 	${ArduinoCode_SOURCE_DIR}/libarduinocore/Print.cpp
 	${ArduinoCode_SOURCE_DIR}/lib/ScobsStream.cpp
-	${ArduinoCode_SOURCE_DIR}/auno/SignalPublisher.cpp
+	${ArduinoCode_SOURCE_DIR}/firmware/SignalPublisher.cpp
 	MockStream.h
 	SignalPublisherTest.cpp
 )
