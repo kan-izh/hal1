@@ -32,15 +32,4 @@ target_link_libraries(SignalPublisherTest gtest_main)
 add_test(NAME SignalPublisherTest
 	COMMAND SignalPublisherTest)
 
-set(RingBufferPublisherTest_sources
-	${ArduinoCode_SOURCE_DIR}/libarduinocore/Print.cpp
-	${ArduinoCode_SOURCE_DIR}/lib/RingBufferPublisher.h
-	MockStream.h
-	RingBufferPublisherTest.cpp
-)
-add_executable(RingBufferPublisherTest ${RingBufferPublisherTest_sources})
-target_link_libraries(RingBufferPublisherTest gtest_main)
-add_test(NAME RingBufferPublisherTest
-	COMMAND RingBufferPublisherTest)
-
 include_directories(${RF24_DIR})

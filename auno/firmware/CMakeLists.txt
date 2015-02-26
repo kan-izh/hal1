@@ -8,6 +8,7 @@ set(CMAKE_SHARED_LIBRARY_LINK_CXX_FLAGS "")
 include_directories(${ArduinoCode_SOURCE_DIR}/libarduinocore)
 include_directories(${ArduinoCode_SOURCE_DIR}/lib)
 include_directories(${RF24_DIR})
+include_directories(${rf24-comm-lib_SOURCE_DIR}/include)
 LINK_DIRECTORIES(${ArduinoCode_SOURCE_DIR}/libarduinocore)
 ADD_DEFINITIONS(-DARDUINO=100)
 

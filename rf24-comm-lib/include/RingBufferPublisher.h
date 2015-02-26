@@ -149,7 +149,7 @@ public:
 			return;
 		}
 		// rewind bufferPos back by the size
-		const uint16_t bufferRewindDistance = missingMessagesCount * payloadSize;
+		const uint16_t bufferRewindDistance = reinterpret_cast<uint16_t> (missingMessagesCount) * payloadSize;
 		if(bufferRewindDistance <= bufferPos)
 			bufferPos -= bufferRewindDistance;
 		else

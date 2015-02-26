@@ -4,5 +4,4 @@ include_directories(${ArduinoCode_SOURCE_DIR}/libarduinocore)
 add_library (lib
 	ScobsStream.h
 	ScobsStream.cpp
-	RingBufferPublisher.h
 )
