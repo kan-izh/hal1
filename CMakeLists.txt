@@ -6,4 +6,4 @@ enable_testing()
 
 add_subdirectory(auno)
 add_subdirectory(rf24-comm-lib)
-
+add_subdirectory(rpi)
