@@ -2,6 +2,10 @@ cmake_minimum_required(VERSION 2.6)
 
 Project(HAL1)
 
+SET(NANOPB_DIR ${HAL1_SOURCE_DIR}/3rd/nanopb)
+SET(RF24_DIR ${HAL1_SOURCE_DIR}/3rd/RF24)
+SET(RPI_RF24_DIR ${HAL1_SOURCE_DIR}/3rd/RF24/RPi/RF24)
+
 enable_testing()
 
 add_subdirectory(auno)

@@ -1,3 +1,5 @@
+#include <RF24.h>
+#include <RPi/RF24/RF24.h>
 #include "Arduino.h"
 #include "HardwareSerial.h"
 #include "Rf24Stream.h"
@@ -6,26 +8,37 @@
 
 //after build -- to flash
 //avrdude -V -c arduino -p m328p -b 115200 -P /dev/ttyACM3 -U flash:w:.build/firmware/firmware.hex
+const int temperatureSensorPin = 0;
+
+typedef RingBufferPublisher<16> RfPublisher;
 
 struct RF24Output : RingBufferOutput
 {
-	virtual void write(uint8_t const *buf, uint8_t len)
-	{
-	}
-} rf24Output;
 
-RingBufferPublisher<128> ringBufferPublisher(&rf24Output);
+    RF24 &radio;
 
-const unsigned long interval = 1000;
-unsigned long time = 0;
+    RF24Output(RF24 &radio) : radio(radio)
+    {
+    }
 
-void doStuff(RF24 &radio, uint8_t &counter);
+    virtual void write(uint8_t const *buf, uint8_t len)
+    {
+        bool written = radio.writeFast(buf, len);
+        Serial.println(written ? "written ok" : "not written");
+    }
+};
 
-const unsigned long ackTimeout = 1000;
+const unsigned long heartbeatIntervalMs = 250;
+unsigned long timeMs = 0;
+
+void schedule(RF24 &radio, RfPublisher &publisher);
+
+bool work = true;
 
 int main()
 {
 	init();
+    Serial.begin(115200);
 
 	RF24 radio(RF_cepin, RF_cspin);
 	radio.begin();
@@ -38,70 +51,32 @@ int main()
     radio.enableAckPayload();
 	radio.startListening();
 
-    uint8_t counter=0;
-    radio.writeAckPayload(1, &counter, sizeof(counter));
-	Serial.begin(115200);
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wmissing-noreturn"
-	for(;;)
+    RF24Output rf24Output(radio);
+    RfPublisher ringBufferPublisher(&rf24Output);
+    Serial.println("initialised");
+    Serial.flush();
+    while(work)
 	{
-		unsigned long currentMillis = millis();
-		if(currentMillis - time > interval)
-		{
-			time = currentMillis;
-
-        }
-        doStuff(radio, counter);
+        schedule(radio, ringBufferPublisher);
     }
-#pragma clang diagnostic pop
 	return 0;
 }
 
-void doStuff(RF24 &radio, uint8_t &counter)
+int readTemperature()
 {
-    if(radio.available()) {
-        int data;
-        radio.read(&data, sizeof(data));
-        Serial.print("received ");
-        Serial.print(data);
-        Serial.println();
-        Serial.flush();
-        radio.writeAckPayload(1, &data, sizeof(data));
+    unsigned long val = analogRead(temperatureSensorPin);
+    return (125 * val * 100) / 256;
+}
+
+void schedule(RF24 &radio, RfPublisher &publisher)
+{
+    unsigned long currentTime = millis();
+    if(currentTime - timeMs > heartbeatIntervalMs)
+    {
+        timeMs = currentTime;
+        radio.stopListening();
+        *(int *) (publisher.getSendBuffer()) = readTemperature();
+        publisher.send();
+        radio.startListening();
     }
 }
-/*
-void doStuff(RF24 &radio, uint8_t &counter) {
-    Serial.println("sending");
-    const unsigned long startSending = millis();
-    //signalPublisher.send();
-    radio.stopListening();
-    bool written = radio.write(&counter, sizeof(counter));
-    radio.startListening();
-    ++counter;
-    Serial.print("sent with ");
-    Serial.print(written ? "SUCCESS" : "FAILURE");
-    Serial.print(" in ");
-    Serial.print(millis() - startSending);
-    Serial.println("ms");
-    Serial.flush();
-    const unsigned long startWaiting = millis();
-    bool timedOut = false;
-    while(!timedOut)
-			{
-                if(radio.available())
-                {
-                    Serial.print("Data ");
-                    int response;
-                    radio.read(&response, sizeof(response));
-                    Serial.print(response, HEX);
-                    Serial.println();
-                    break;
-                }
-				timedOut = millis() - startWaiting > ackTimeout;
-			}
-    Serial.print(timedOut ? "timed out " : "waited ");
-    Serial.print(millis() - startWaiting);
-    Serial.println("ms");
-    Serial.flush();
-}
-*/
