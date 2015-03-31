@@ -4,3 +4,7 @@
 [submodule "3rd/RF24"]
 	path = 3rd/RF24
 	url = https://github.com/stanleyseow/RF24.git
+[submodule "3rd/rpi/tools"]
+	path = 3rd/rpi/tools
+	url = https://github.com/raspberrypi/tools.git
+
