@@ -1,5 +1,4 @@
 #include <RF24.h>
-#include <RPi/RF24/RF24.h>
 #include "Arduino.h"
 #include "HardwareSerial.h"
 #include "Rf24Stream.h"
@@ -23,12 +22,16 @@ struct RF24Output : RingBufferOutput
 
     virtual void write(uint8_t const *buf, uint8_t len)
     {
-        bool written = radio.writeFast(buf, len);
-        Serial.println(written ? "written ok" : "not written");
+        radio.stopListening();
+        bool written = radio.writeBlocking(buf, len, 2000);
+        bool txen = radio.txStandBy();
+        radio.startListening();
+        Serial.print(written ? "written ok" : "not written. ");
+        Serial.println(txen ? "txen ok" : "not txen");
     }
 };
 
-const unsigned long heartbeatIntervalMs = 250;
+const unsigned long heartbeatIntervalMs = 1000;
 unsigned long timeMs = 0;
 
 void schedule(RF24 &radio, RfPublisher &publisher);
@@ -43,12 +46,11 @@ int main()
 	RF24 radio(RF_cepin, RF_cspin);
 	radio.begin();
 	radio.setAutoAck(true);
-	radio.setRetries(15, 15);
-	radio.setChannel(RF_channel);
+    radio.setChannel(RF_channel);
 	radio.setPALevel(RF24_PA_MAX);
+    radio.setAddressWidth(RF_COMM_ADDRESS_WIDTH);
 	radio.openWritingPipe(RF_address_write);
 	radio.openReadingPipe(1, RF_address_read);
-    radio.enableAckPayload();
 	radio.startListening();
 
     RF24Output rf24Output(radio);
@@ -74,9 +76,7 @@ void schedule(RF24 &radio, RfPublisher &publisher)
     if(currentTime - timeMs > heartbeatIntervalMs)
     {
         timeMs = currentTime;
-        radio.stopListening();
         *(int *) (publisher.getSendBuffer()) = readTemperature();
         publisher.send();
-        radio.startListening();
     }
 }

@@ -12,11 +12,14 @@ int main(int argc, char *argv[])
 {
 	RF24 radio(RPI_V2_GPIO_P1_22, RPI_V2_GPIO_P1_24, BCM2835_SPI_SPEED_8MHZ);
 	radio.begin();
-	radio.setChannel(0x4c);
-	radio.openReadingPipe(1, RF_COMM_ADDRESS_ARDUINO_TO_RPI);
+	radio.setChannel(RF_COMM_CHANNEL_ARDUINO_TO_RPI);
+	radio.setPALevel(RF24_PA_MAX);
+	radio.setAddressWidth(RF_COMM_ADDRESS_WIDTH);
 	radio.openWritingPipe(RF_COMM_ADDRESS_RPI_TO_ARDUINO);
+	radio.openReadingPipe(1, RF_COMM_ADDRESS_ARDUINO_TO_RPI);
 	radio.startListening();
 	radio.printDetails();
+	fflush(stdout);
 	while(work)
 	{
 		loop(radio);
@@ -27,12 +30,14 @@ int main(int argc, char *argv[])
 const int tempHistorySize = 1024;
 int tempHistory[tempHistorySize] = {};
 int tempHistoryPos = 0;
+int pulse=0;
 
 void loop(RF24 &radio)
 {
 	uint8_t buf[32];
 	if (radio.available())
 	{
+		pulse = 0;
 		radio.read(buf, 32);
 		int hwm = *(int *) (buf);
 		int temp = *(int *) (buf + 4);
@@ -55,4 +60,9 @@ void loop(RF24 &radio)
 		fflush(stdout);
 	}
 	delay(100);
+	if (++pulse % 20 == 0)
+	{
+		printf("pulse %d\n", pulse);
+		fflush(stdout);
+	}
 }
