@@ -11,6 +11,7 @@ set(RingBufferPublisher_sources
 set(RingBufferPublisherTest_sources
 	${RingBufferPublisher_sources}
 	RingBufferPublisherTest.cpp
+	RingBufferSenderTest.cpp
 )
 
 add_executable(RingBufferPublisherTest ${RingBufferPublisherTest_sources})
