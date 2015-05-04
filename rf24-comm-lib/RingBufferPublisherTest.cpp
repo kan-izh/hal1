@@ -1,7 +1,8 @@
 #include "gtest/gtest.h"
 #include "RingBufferPublisher.h"
 
-typedef RingBufferPublisher<128, 32> TestSubject;
+static const int bufferSize = 10;
+typedef RingBufferPublisher<bufferSize, 32> TestSubject;
 
 struct MockRingBufferOutput : RingBufferOutput
 {
@@ -103,4 +104,24 @@ TEST(RingBufferPublisherTest, heartbeat)
 	const uint32_t &msgId = actual.template take<uint8_t >();
 	ASSERT_EQ(1U, actualHwm);
 	ASSERT_EQ(0, msgId);
+}
+
+TEST(RingBufferPublisherTest, bufferWrap)
+{
+	MockRingBufferOutput output;
+	TestSubject testSubject(&output);
+	for (int i = 1; i <= bufferSize * 2; ++i)
+	{
+		testSubject.getSendBuffer().put(i * 2);
+		testSubject.send();
+	}
+	ASSERT_EQ(bufferSize * 2, output.written.size());
+	for (int i = 1; i <= bufferSize * 2; ++i)
+	{
+		TestSubject::PayloadAccessor actual(&output.written[i - 1]);
+		const uint32_t &actualHwm = actual.template take<uint32_t>();
+		const int &actualData = actual.template take<int>();
+		ASSERT_EQ(i, actualHwm);
+		ASSERT_EQ(i * 2, actualData);
+	}
 }

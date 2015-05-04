@@ -50,6 +50,14 @@ private:
 		output->write(cmd.getBuf(), payloadSize);
 	}
 
+	void nextBuffer()
+	{
+		PayloadBuffer *nextBuffer = bufferAccessor.current() + 1;
+		if(nextBuffer - buffer >= bufferSize)
+			nextBuffer = buffer;
+		bufferAccessor.set(nextBuffer);
+	}
+
 public:
 	RingBufferPublisher(RingBufferOutput *const output)
 			: output(output)
@@ -81,14 +89,6 @@ public:
 		}
 		nextBuffer();
 		setHighWatermark(nextHwm);
-	}
-
-	void nextBuffer()
-	{
-		PayloadBuffer *nextBuffer = bufferAccessor.current() + 1;
-		if(nextBuffer - buffer >= bufferSize)
-			nextBuffer = buffer;
-		bufferAccessor.set(nextBuffer);
 	}
 
 	const uint32_t &getHighWatermark() const
