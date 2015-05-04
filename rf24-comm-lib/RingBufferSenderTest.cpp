@@ -1,6 +1,6 @@
 #include <string>
-#include <ios>
 #include "gtest/gtest.h"
+#include "gmock/gmock.h"
 #include "RingBufferPublisher.h"
 #include "RingBufferSubscriber.h"
 namespace
@@ -11,22 +11,17 @@ namespace
 	typedef RingBufferPublisher<bufferSize, 32> Publisher;
 	typedef RingBufferSubscriber<32> TestSubject;
 
-	struct MockHandler : TestSubject::Handler
+	MATCHER_P(HasData, data, "") 
 	{
-		std::stringstream result;
+		data_type actual = arg.template take<uint64_t>();
+		*result_listener << "Data is " << actual;
+		return actual == data;
+	}
 
-		virtual void handle(uint32_t messageId, uint8_t contentId, RingBufferSubscriber<32>::PayloadAccessor &input)
-		{
-			result << "handle("
-			<< messageId << ", "
-			<< int(contentId) << ", "
-			<< input.template take<uint64_t>()
-			<< ")" << std::endl;
-		}
-
-		virtual void handleNak(uint32_t hwm)
-		{
-		}
+	struct MockHandler : public TestSubject::Handler
+	{
+		MOCK_METHOD3(handle, void(uint32_t messageId, uint8_t contentId, TestSubject::PayloadAccessor &input));
+		MOCK_METHOD1(handleNak, void(uint32_t hwm));
 	};
 
 	struct RingBufferLoopBackOutput : RingBufferOutput
@@ -50,10 +45,13 @@ namespace
 		TestSubject testSubject(&handler);
 		RingBufferLoopBackOutput loopBackOutput(&testSubject);
 		Publisher publisher(&loopBackOutput);
+
+		EXPECT_CALL(handler, handle(1U, contentId, HasData(data)))
+				.Times(1);
+
 		publisher.getSendBuffer()
 				.put(contentId)
 				.put(data);
 		publisher.send();
-		ASSERT_EQ("handle(1, 73, 9136457987143567615)\n", handler.result.str());
 	}
 }
