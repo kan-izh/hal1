@@ -1,7 +1,9 @@
 #ifndef RingBufferPublisher_h
 #define RingBufferPublisher_h
 
+
 #include <stdint.h>
+#include "ByteBuffer.h"
 
 static uint32_t const CONTROL_BAD_NAK_ID = (uint32_t) (-0x1);
 static uint32_t const CONTROL_NAK_BUFFER_OVERFLOW = (uint32_t) (-0x2);
@@ -19,74 +21,46 @@ template<
 >
 class RingBufferPublisher
 {
+public:
+	typedef ByteBuffer<payloadSize> PayloadBuffer;
+	typedef typename ByteBuffer<payloadSize>::Accessor PayloadAccessor;
 private:
-	static const uint8_t highWaterMarkSize = sizeof(uint32_t);
-	static const uint16_t bufferArraySize = bufferSize * payloadSize;
-	uint8_t buffer[bufferArraySize];
-	uint8_t controlMsg[payloadSize];
-	uint16_t bufferPos;
 	RingBufferOutput *const output;
+	PayloadBuffer *bufferPos;
+	PayloadBuffer buffer[bufferSize];
+	PayloadAccessor bufferAccessor;
+	PayloadBuffer controlMsg;
 private:
-	uint8_t *cur()
+	PayloadAccessor &cur()
 	{
-		return buffer + bufferPos;
+		return bufferAccessor;
 	}
 
-	const uint8_t *cur() const
+	const PayloadAccessor &cur() const
 	{
-		return buffer + bufferPos;
+		return bufferAccessor;
 	}
 
 	void sendCurrent() const
 	{
-		output->write(cur(), payloadSize);
+		output->write(bufferAccessor.getBuf(), payloadSize);
 	}
 
-	uint32_t &hwm()
+	void resetAccessor()
 	{
-		uint8_t *buf = cur();
-		return hwmCast(buf);
-	}
-	
-	const uint32_t hwm() const
-	{
-		const uint8_t *buf = cur();
-		return hwmCast(buf);
+		bufferAccessor.reset(bufferPos);
 	}
 
-	static uint32_t &hwmCast(uint8_t *buf)
+	void sendControlCommand(PayloadAccessor &cmd)
 	{
-		return *reinterpret_cast<uint32_t *>(buf);
-	}
-
-	static uint32_t hwmCast(const uint8_t *buf)
-	{
-		return *reinterpret_cast<const uint32_t *>(buf);
-	}
-
-	void clear()
-	{
-		memset(buffer, 0, bufferArraySize);
-	}
-
-	uint8_t *controlCommand(const uint32_t id)
-	{
-		hwmCast(controlMsg) = id;
-		uint8_t *cmdData = controlMsg + highWaterMarkSize;
-		memset(cmdData, 0, payloadSize - highWaterMarkSize);
-		return cmdData;
-	}
-
-	void sendControlCommand()
-	{
-		output->write(controlMsg, payloadSize);
+		output->write(cmd.getBuf(), payloadSize);
 	}
 
 public:
-
 	RingBufferPublisher(RingBufferOutput *const output)
-			: bufferPos(0)
-			, output(output)
+			: output(output)
+			, bufferPos(buffer)
+			, bufferAccessor(bufferPos)
 	{
 		setHighWatermark(1);
 	}
@@ -95,65 +69,69 @@ public:
 	{
 		sendCurrent();
 	}
-	
-	void *getSendBuffer()
-	{
-		return cur() + highWaterMarkSize;
-	}
 
-	uint8_t getSendBufferSize()
+	PayloadAccessor &getSendBuffer()
 	{
-		return payloadSize - highWaterMarkSize;
+		return cur();
 	}
 
 	void send()
 	{
 		sendCurrent();
-		uint32_t nextHwm = hwm() + 1;
+		const uint32_t nextHwm = getHighWatermark() + 1;
 		if(nextHwm > MAX_HIGH_WATERMARK_VALUE)
 		{
-			--nextHwm;
-			controlCommand(CONTROL_MAX_HIGH_WATERMARK_ID);
-			sendControlCommand();
+			sendControlCommand(
+					PayloadAccessor(&controlMsg)
+							.put(CONTROL_MAX_HIGH_WATERMARK_ID));
+			return;
 		}
-		bufferPos += payloadSize;
-		if(bufferPos >= bufferArraySize)
-			bufferPos = 0;
-		hwm() = nextHwm;
+		++bufferPos;
+		if(bufferPos - buffer >= bufferSize)
+			bufferPos = buffer;
+		setHighWatermark(nextHwm);
 	}
 
-	uint32_t getHighWatermark() const
+	const uint32_t &getHighWatermark() const
 	{
-		return hwm();
+		const PayloadAccessor &accessor = cur();
+		const uint32_t &value = accessor.template get<uint32_t>(0);
+		return value;
 	}
 
 	void setHighWatermark(const uint32_t value)
 	{
-		clear();
-		hwm() = value;
+		resetAccessor();
+		cur().put(value);
+		cur().clear();
 	}
 
 	void nak(const uint32_t subscriberHighWatermark)
 	{
-		if(subscriberHighWatermark > hwm())
+		const uint32_t &hwm = getHighWatermark();
+		if(subscriberHighWatermark > hwm)
 		{
-			hwmCast(controlCommand(CONTROL_BAD_NAK_ID)) = subscriberHighWatermark;
-			sendControlCommand();
+			sendControlCommand(
+					PayloadAccessor(&controlMsg)
+							.put(CONTROL_BAD_NAK_ID)
+							.put(subscriberHighWatermark));
 			return;
 		}
-		uint32_t missingMessagesCount = hwm() - subscriberHighWatermark;
+		uint32_t missingMessagesCount = hwm - subscriberHighWatermark;
 		if(missingMessagesCount > bufferSize)
 		{
-			hwmCast(controlCommand(CONTROL_NAK_BUFFER_OVERFLOW)) = subscriberHighWatermark;
-			sendControlCommand();
+			sendControlCommand(
+					PayloadAccessor(&controlMsg)
+							.put(CONTROL_NAK_BUFFER_OVERFLOW)
+							.put(subscriberHighWatermark));
 			return;
 		}
 		// rewind bufferPos back by the size
-		const uint16_t bufferRewindDistance = static_cast<uint16_t> (missingMessagesCount) * payloadSize;
-		if(bufferRewindDistance <= bufferPos)
-			bufferPos -= bufferRewindDistance;
-		else
-			bufferPos += bufferArraySize - bufferRewindDistance;
+		const uint16_t bufferRewindDistance = static_cast<uint16_t> (missingMessagesCount);
+		bufferPos -= bufferRewindDistance;
+		if(bufferPos < buffer)
+			bufferPos += bufferSize;
+		resetAccessor();
 		// send all naked messages up to original position
 		while (missingMessagesCount--)
 		{

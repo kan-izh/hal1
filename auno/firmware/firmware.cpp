@@ -64,10 +64,9 @@ int main()
 	return 0;
 }
 
-int readTemperature()
+uint16_t readTemperature()
 {
-    unsigned long val = analogRead(temperatureSensorPin);
-    return (125 * val * 100) / 256;
+    return (uint16_t) analogRead(temperatureSensorPin);
 }
 
 void schedule(RF24 &radio, RfPublisher &publisher)
@@ -76,7 +75,7 @@ void schedule(RF24 &radio, RfPublisher &publisher)
     if(currentTime - timeMs > heartbeatIntervalMs)
     {
         timeMs = currentTime;
-        *(int *) (publisher.getSendBuffer()) = readTemperature();
+        publisher.getSendBuffer().put(readTemperature());
         publisher.send();
     }
 }

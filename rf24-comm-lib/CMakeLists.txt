@@ -4,6 +4,7 @@ include_directories(include)
 include_directories(${gtest_SOURCE_DIR}/include)
 
 set(RingBufferPublisher_sources
+	include/ByteBuffer.h
 	include/RingBufferPublisher.h
 )
 
