@@ -26,7 +26,6 @@ public:
 	typedef typename ByteBuffer<payloadSize>::Accessor PayloadAccessor;
 private:
 	RingBufferOutput *const output;
-	PayloadBuffer *bufferPos;
 	PayloadBuffer buffer[bufferSize];
 	PayloadAccessor bufferAccessor;
 	PayloadBuffer controlMsg;
@@ -46,11 +45,6 @@ private:
 		output->write(bufferAccessor.getBuf(), payloadSize);
 	}
 
-	void resetAccessor()
-	{
-		bufferAccessor.reset(bufferPos);
-	}
-
 	void sendControlCommand(PayloadAccessor &cmd)
 	{
 		output->write(cmd.getBuf(), payloadSize);
@@ -59,8 +53,7 @@ private:
 public:
 	RingBufferPublisher(RingBufferOutput *const output)
 			: output(output)
-			, bufferPos(buffer)
-			, bufferAccessor(bufferPos)
+			, bufferAccessor(buffer)
 	{
 		setHighWatermark(1);
 	}
@@ -86,10 +79,16 @@ public:
 							.put(CONTROL_MAX_HIGH_WATERMARK_ID));
 			return;
 		}
-		++bufferPos;
-		if(bufferPos - buffer >= bufferSize)
-			bufferPos = buffer;
+		nextBuffer();
 		setHighWatermark(nextHwm);
+	}
+
+	void nextBuffer()
+	{
+		PayloadBuffer *nextBuffer = bufferAccessor.current() + 1;
+		if(nextBuffer - buffer >= bufferSize)
+			nextBuffer = buffer;
+		bufferAccessor.set(nextBuffer);
 	}
 
 	const uint32_t &getHighWatermark() const
@@ -101,7 +100,7 @@ public:
 
 	void setHighWatermark(const uint32_t value)
 	{
-		resetAccessor();
+		cur().reset();
 		cur().put(value);
 		cur().clear();
 	}
@@ -128,14 +127,16 @@ public:
 		}
 		// rewind bufferPos back by the size
 		const uint16_t bufferRewindDistance = static_cast<uint16_t> (missingMessagesCount);
-		bufferPos -= bufferRewindDistance;
-		if(bufferPos < buffer)
-			bufferPos += bufferSize;
-		resetAccessor();
+		PayloadBuffer *rewindTo = bufferAccessor.current();
+		rewindTo -= bufferRewindDistance;
+		if(rewindTo < buffer)
+			rewindTo += bufferSize;
+		bufferAccessor.set(rewindTo);
 		// send all naked messages up to original position
 		while (missingMessagesCount--)
 		{
-			send();
+			sendCurrent();
+			nextBuffer();
 		}
 	}
 };

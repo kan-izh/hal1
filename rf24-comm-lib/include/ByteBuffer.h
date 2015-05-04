@@ -18,16 +18,25 @@ public:
 	public:
 		Accessor(Buffer *buffer)
 		{
-			reset(buffer);
+			set(buffer);
+			reset();
 		}
 
-		void reset(Buffer *buffer)
+		void reset()
 		{
-			this->buffer = buffer;
 			offset = 0;
 		}
 
-	public:
+		void set(Buffer *buffer)
+		{
+			this->buffer = buffer;
+		}
+
+		Buffer *current()
+		{
+			return buffer;
+		}
+
 		template<typename T>
 		const T & get(uint8_t offset) const
 		{
