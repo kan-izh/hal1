@@ -125,3 +125,27 @@ TEST(RingBufferPublisherTest, bufferWrap)
 		ASSERT_EQ(i * 2, actualData);
 	}
 }
+
+TEST(RingBufferPublisherTest, overflowHwm)
+{
+	const int32_t data = -1151414542;
+	MockRingBufferOutput output;
+	TestSubject testSubject(&output);
+	const uint32_t lastAvailableHwm = MAX_HIGH_WATERMARK_VALUE - 1;
+	testSubject.setHighWatermark(lastAvailableHwm);
+	testSubject.getSendBuffer()
+			.put(data);
+	testSubject.send();
+	testSubject.getSendBuffer()
+			.put(data + 1);
+	testSubject.send();
+	ASSERT_EQ(2U, output.written.size());
+	TestSubject::PayloadAccessor actual1(&output.written[0]);
+	const uint32_t &actualHwm1 = actual1.template take<uint32_t>();
+	const int32_t &actualData1 = actual1.template take<int32_t>();
+	ASSERT_EQ(lastAvailableHwm, actualHwm1);
+	ASSERT_EQ(data, actualData1);
+	TestSubject::PayloadAccessor actual2(&output.written[1]);
+	const uint32_t &actualHwm2 = actual2.template take<uint32_t>();
+	ASSERT_EQ(CONTROL_MAX_HIGH_WATERMARK_ID, actualHwm2);
+}

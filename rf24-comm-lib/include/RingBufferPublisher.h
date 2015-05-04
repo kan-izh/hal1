@@ -78,7 +78,6 @@ public:
 
 	void send()
 	{
-		sendCurrent();
 		const uint32_t nextHwm = getHighWatermark() + 1;
 		if(nextHwm > MAX_HIGH_WATERMARK_VALUE)
 		{
@@ -87,6 +86,7 @@ public:
 							.put(CONTROL_MAX_HIGH_WATERMARK_ID));
 			return;
 		}
+		sendCurrent();
 		nextBuffer();
 		setHighWatermark(nextHwm);
 	}
