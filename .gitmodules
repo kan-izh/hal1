@@ -8,3 +8,6 @@
 	path = 3rd/rpi/tools
 	url = https://github.com/raspberrypi/tools.git
 
+[submodule "3rd/gmock"]
+	path = 3rd/gmock
+	url = https://github.com/kan-izh/googlemock.git
