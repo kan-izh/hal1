@@ -58,7 +58,7 @@ public:
 				handleMessage();
 				this->hwm = messageId + 1;
 			}
-			else
+			else if(this->hwm < messageId)
 			{
 				requestNak();
 			}

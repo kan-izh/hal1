@@ -5,6 +5,8 @@
 #include "RingBufferSubscriber.h"
 namespace
 {
+	using ::testing::_;
+
 	static const int bufferSize = 10;
 	static const uint8_t contentId = 73;
 	static const uint64_t data = 9136457987143567615ULL;
@@ -26,32 +28,107 @@ namespace
 
 	struct RingBufferLoopBackOutput : RingBufferOutput
 	{
+		bool broken;
 		TestSubject *subscriber;
 		RingBufferLoopBackOutput(TestSubject *subscriber)
 				: subscriber(subscriber)
+				, broken(false)
 		{}
 
 		virtual void write(uint8_t const *buf, uint8_t len)
 		{
+			if(broken)
+			{
+				return;
+			}
 			ASSERT_GE(subscriber->getBufSize(), len);
 			memcpy(subscriber->getBuf(), buf, len);
 			subscriber->process();
 		}
 	};
 
-	TEST(RingBufferSubscriberTest, shouldSendData)
+	struct RingBufferSubscriberTest : ::testing::Test
 	{
 		MockHandler handler;
-		TestSubject testSubject(&handler);
-		RingBufferLoopBackOutput loopBackOutput(&testSubject);
-		Publisher publisher(&loopBackOutput);
+		TestSubject testSubject;
+		RingBufferLoopBackOutput loopBackOutput;
+		Publisher publisher;
 
-		EXPECT_CALL(handler, handle(1U, contentId, HasData(data)))
+		RingBufferSubscriberTest()
+				: testSubject(&handler)
+				, loopBackOutput(&testSubject)
+				, publisher(&loopBackOutput)
+		{}
+
+		void send()
+		{
+			publisher.getSendBuffer()
+					.put(contentId)
+					.put(data);
+			publisher.send();
+		}
+
+		void sendAndExpectFirst()
+		{
+			EXPECT_CALL(handler, handle(1U, contentId, HasData(data)))
+					.Times(1);
+			send();
+		}
+
+	};
+
+	TEST_F(RingBufferSubscriberTest, shouldSendData)
+	{
+		sendAndExpectFirst();
+	}
+
+	TEST_F(RingBufferSubscriberTest, shouldLateJoin)
+	{
+		const uint32_t initialHwm = 84;
+
+		EXPECT_CALL(handler, handle(initialHwm, contentId, HasData(data)))
 				.Times(1);
 
-		publisher.getSendBuffer()
-				.put(contentId)
-				.put(data);
-		publisher.send();
+		publisher.setHighWatermark(initialHwm);
+		send();
+	}
+
+	TEST_F(RingBufferSubscriberTest, shouldNak)
+	{
+		sendAndExpectFirst();
+		loopBackOutput.broken = true;
+		send();
+
+		loopBackOutput.broken = false;
+
+		EXPECT_CALL(handler, handleNak(2U))
+				.Times(1);
+		send();
+	}
+
+	TEST_F(RingBufferSubscriberTest, shouldRecoverAfterNaked)
+	{
+		sendAndExpectFirst();
+		loopBackOutput.broken = true;
+		send();
+		loopBackOutput.broken = false;
+
+		EXPECT_CALL(handler, handleNak(2U))
+				.Times(1);
+		send();
+
+		EXPECT_CALL(handler, handle(2U, contentId, HasData(data)))
+				.Times(1);
+		EXPECT_CALL(handler, handle(3U, contentId, HasData(data)))
+				.Times(1);
+		publisher.nak(2U);
+	}
+
+	TEST_F(RingBufferSubscriberTest, shouldIgnoreReceived)
+	{
+		sendAndExpectFirst();
+		EXPECT_CALL(handler, handleNak(_))
+				.Times(0);
+		publisher.nak(1U);
 	}
 }
