@@ -4,11 +4,35 @@
 #include "Rf24Stream.h"
 #include "rf-settings.h"
 #include "../../conf/messages.h"
+#include "RingBufferSubscriber.h"
 #include "RingBufferPublisher.h"
 
 //after build -- to flash
 //avrdude -V -c arduino -p m328p -b 115200 -P /dev/ttyACM3 -U flash:w:.build/firmware/firmware.hex
+typedef RingBufferSubscriber<RF_PAYLOAD_SIZE> RfSubscriber;
 typedef RingBufferPublisher<16, RF_PAYLOAD_SIZE> RfPublisher;
+
+struct SubscriberHandler : RfSubscriber::Handler
+{
+	RfPublisher &publisher;
+
+	SubscriberHandler(RfPublisher &publisher)
+			:publisher(publisher)
+	{ }
+
+	virtual void handle(uint32_t messageId, uint8_t contentId, RingBufferSubscriber<32>::PayloadAccessor &input)
+	{
+	}
+
+	virtual void handleNak(uint32_t hwm)
+	{
+	}
+
+	virtual void nak(const uint32_t &subscriberHighWatermark)
+	{
+		publisher.nak(subscriberHighWatermark);
+	}
+};
 
 struct RF24Output : RingBufferOutput
 {
@@ -34,6 +58,7 @@ const unsigned long heartbeatIntervalMs = 1000;
 unsigned long timeMs = 0;
 
 void schedule(RF24 &radio, RfPublisher &publisher);
+void listenRf(RF24 &radio, RfSubscriber &subscriber);
 
 void sendAnalogRead(RfPublisher &publisher, const uint8_t i);
 
@@ -56,13 +81,25 @@ int main()
 
     RF24Output rf24Output(radio);
     RfPublisher ringBufferPublisher(&rf24Output);
+	SubscriberHandler subscriberHandler(ringBufferPublisher);
+	RfSubscriber subscriber(&subscriberHandler);
     Serial.println("initialised");
     Serial.flush();
     while(work)
 	{
-        schedule(radio, ringBufferPublisher);
+		listenRf(radio, subscriber);
+		schedule(radio, ringBufferPublisher);
     }
 	return 0;
+}
+
+void listenRf(RF24 &radio, RfSubscriber &subscriber)
+{
+	while(radio.available())
+	{
+		radio.read(subscriber.getBuf(), subscriber.getBufSize());
+		subscriber.process();
+	}
 }
 
 void schedule(RF24 &radio, RfPublisher &publisher)

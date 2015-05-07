@@ -24,6 +24,7 @@ namespace
 	{
 		MOCK_METHOD3(handle, void(uint32_t messageId, uint8_t contentId, TestSubject::PayloadAccessor &input));
 		MOCK_METHOD1(handleNak, void(uint32_t hwm));
+		MOCK_METHOD1(nak, void(const uint32_t &subscriberHighWatermark));
 	};
 
 	struct RingBufferLoopBackOutput : RingBufferOutput

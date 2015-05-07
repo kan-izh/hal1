@@ -17,6 +17,7 @@ public:
 	{
 		virtual void handle(uint32_t messageId, uint8_t contentId, PayloadAccessor &input) = 0;
 		virtual void handleNak(uint32_t hwm) = 0;
+		virtual void nak(const uint32_t &subscriberHighWatermark) = 0;
 	};
 private:
 	Handler *handler;
@@ -59,10 +60,18 @@ public:
 
 private:
 
-	void processControl(const uint32_t &controlId) const
+	void processControl(const uint32_t &controlId)
 	{
 		switch (controlId)
 		{
+			case CONTROL_REQUEST_NAK:
+			{
+				const uint32_t &subscriberHighWatermark = accessor.template take<uint32_t>();
+				handler->nak(subscriberHighWatermark);
+				break;
+			}
+			default:
+				break;
 		}
 	}
 

@@ -136,6 +136,15 @@ public:
 			nextBuffer();
 		}
 	}
+
+	void sendNak(const uint32_t &hwm)
+	{
+		sendControlCommand(
+				PayloadAccessor(&controlMsg)
+						.put(CONTROL_REQUEST_NAK)
+						.put(hwm)
+		);
+	}
 };
 
 #endif //RingBufferPublisher_h

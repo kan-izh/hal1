@@ -4,9 +4,33 @@
 #include <RF24.h>
 #include "../conf/rf-comm.h"
 #include "RingBufferSubscriber.h"
+#include "RingBufferPublisher.h"
 #include "../conf/messages.h"
 
 typedef RingBufferSubscriber<RF_PAYLOAD_SIZE> Subscriber;
+typedef RingBufferPublisher<1024, RF_PAYLOAD_SIZE> RfPublisher;
+
+
+struct RF24Output : RingBufferOutput
+{
+
+	RF24 &radio;
+
+	RF24Output(RF24 &radio) : radio(radio)
+	{
+	}
+
+	virtual void write(uint8_t const *buf, uint8_t len)
+	{
+		radio.stopListening();
+		bool written = radio.writeBlocking(buf, len, 2000);
+		bool txen = radio.txStandBy();
+		radio.startListening();
+		printf(written ? "written ok. " : "not written. ");
+		printf(txen ? "txen ok.\n" : "not txen.\n");
+		fflush(stdout);
+	}
+};
 
 uint32_t convertTemperature(const uint16_t value)
 {
@@ -17,6 +41,11 @@ void display(uint32_t temperatureInMilliC);
 
 struct SubscriberHandler : Subscriber::Handler
 {
+	RfPublisher &publisher;
+	SubscriberHandler(RfPublisher &publisher)
+			: publisher(publisher)
+	{ }
+
 	void messageAnalogRead(const uint8_t &pin, const uint16_t &value)
 	{
 		switch (pin)
@@ -50,8 +79,13 @@ struct SubscriberHandler : Subscriber::Handler
 
 	virtual void handleNak(uint32_t hwm)
 	{
-		printf("acked for %d\n", hwm);
+		printf("sending ack for %d\n", hwm);
 		fflush(stdout);
+		publisher.sendNak(hwm);
+	}
+
+	virtual void nak(const uint32_t &subscriberHighWatermark)
+	{
 	}
 };
 
@@ -72,7 +106,9 @@ int main(int argc, char *argv[])
 	radio.printDetails();
 	fflush(stdout);
 
-	SubscriberHandler handler;
+	RF24Output rf24Output(radio);
+	RfPublisher publisher(&rf24Output);
+	SubscriberHandler handler(publisher);
 	Subscriber subscriber(&handler);
 
 	while(work)
