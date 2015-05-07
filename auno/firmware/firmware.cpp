@@ -3,13 +3,12 @@
 #include "HardwareSerial.h"
 #include "Rf24Stream.h"
 #include "rf-settings.h"
+#include "../../conf/messages.h"
 #include "RingBufferPublisher.h"
 
 //after build -- to flash
 //avrdude -V -c arduino -p m328p -b 115200 -P /dev/ttyACM3 -U flash:w:.build/firmware/firmware.hex
-const int temperatureSensorPin = 0;
-
-typedef RingBufferPublisher<16> RfPublisher;
+typedef RingBufferPublisher<16, RF_PAYLOAD_SIZE> RfPublisher;
 
 struct RF24Output : RingBufferOutput
 {
@@ -35,6 +34,8 @@ const unsigned long heartbeatIntervalMs = 1000;
 unsigned long timeMs = 0;
 
 void schedule(RF24 &radio, RfPublisher &publisher);
+
+void sendAnalogRead(RfPublisher &publisher, const uint8_t i);
 
 bool work = true;
 
@@ -64,18 +65,22 @@ int main()
 	return 0;
 }
 
-uint16_t readTemperature()
-{
-    return (uint16_t) analogRead(temperatureSensorPin);
-}
-
 void schedule(RF24 &radio, RfPublisher &publisher)
 {
     unsigned long currentTime = millis();
     if(currentTime - timeMs > heartbeatIntervalMs)
     {
         timeMs = currentTime;
-        publisher.getSendBuffer().put(readTemperature());
-        publisher.send();
+		sendAnalogRead(publisher, TEMPERATURE_SENSOR);
     }
+}
+
+void sendAnalogRead(RfPublisher &publisher, const uint8_t pin)
+{
+	const uint16_t value = (uint16_t) analogRead(pin);
+	publisher.getSendBuffer()
+				.put(MESSAGE_ANALOG_READ)
+				.put(pin)
+				.put(value);
+	publisher.send();
 }

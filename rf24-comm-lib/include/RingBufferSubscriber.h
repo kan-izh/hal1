@@ -45,34 +45,45 @@ public:
 
 	void process()
 	{
-		const uint32_t &messageId = accessor.template take<uint32_t>();
-		if (messageId <= MAX_HIGH_WATERMARK_VALUE)
+		const uint32_t &controlId = accessor.template take<uint32_t>();
+		if (controlId <= MAX_HIGH_WATERMARK_VALUE)
 		{
-			if (this->hwm == 0)
-			{
-				this->hwm = messageId;
-			}
-
-			if(this->hwm == messageId)
-			{
-				handleMessage();
-				this->hwm = messageId + 1;
-			}
-			else if(this->hwm < messageId)
-			{
-				requestNak();
-			}
+			processMessage(controlId);
 		}
 		else
 		{
-			switch (messageId)
-			{
-			}
+			processControl(controlId);
 		}
 		accessor.reset();
 	}
 
 private:
+
+	void processControl(const uint32_t &controlId) const
+	{
+		switch (controlId)
+		{
+		}
+	}
+
+	void processMessage(const uint32_t &sequence)
+	{
+		if (hwm == 0)
+		{
+			hwm = sequence;
+		}
+
+		if(hwm == sequence)
+		{
+			handleMessage();
+			hwm = sequence + 1;
+		}
+		else if(hwm < sequence)
+		{
+			requestNak();
+		}
+	}
+
 	void handleMessage()
 	{
 		const uint8_t &id = accessor.template take<uint8_t>();

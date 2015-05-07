@@ -2,6 +2,7 @@ Project(RaspberryPi)
 include(rpi.cmake)
 
 include_directories(${RPI_RF24_DIR})
+include_directories(${rf24-comm-lib_SOURCE_DIR}/include)
 
 add_executable (auno-gw
     auno-gw.cpp
