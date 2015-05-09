@@ -26,16 +26,6 @@ private:
 	PayloadAccessor bufferAccessor;
 	PayloadBuffer controlMsg;
 private:
-	PayloadAccessor &cur()
-	{
-		return bufferAccessor;
-	}
-
-	const PayloadAccessor &cur() const
-	{
-		return bufferAccessor;
-	}
-
 	void sendCurrent() const
 	{
 		output->write(bufferAccessor.getBuf(), payloadSize);
@@ -69,15 +59,16 @@ public:
 
 	PayloadAccessor &getSendBuffer()
 	{
-		return cur();
+		return bufferAccessor;
 	}
 
 	void send()
 	{
-		const uint32_t nextHwm = getHighWatermark() + 1;
+		const uint32_t &hwm = getHighWatermark();
+		const uint32_t nextHwm = hwm + 1;
 		if(nextHwm > MAX_HIGH_WATERMARK_VALUE)
 		{
-			setHighWatermark(getHighWatermark());
+			setHighWatermark(hwm);
 			sendControlCommand(
 					PayloadAccessor(&controlMsg)
 							.put(CONTROL_MAX_HIGH_WATERMARK_ID));
@@ -90,16 +81,14 @@ public:
 
 	const uint32_t &getHighWatermark() const
 	{
-		const PayloadAccessor &accessor = cur();
-		const uint32_t &value = accessor.template get<uint32_t>(0);
-		return value;
+		return bufferAccessor.template get<uint32_t>(0);
 	}
 
 	void setHighWatermark(const uint32_t value)
 	{
-		cur().reset();
-		cur().put(value);
-		cur().clear();
+		bufferAccessor.reset();
+		bufferAccessor.put(value);
+		bufferAccessor.clear();
 	}
 
 	void nak(const uint32_t subscriberHighWatermark)

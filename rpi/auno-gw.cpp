@@ -42,8 +42,10 @@ void display(uint32_t temperatureInMilliC);
 struct SubscriberHandler : Subscriber::Handler
 {
 	RfPublisher &publisher;
-	SubscriberHandler(RfPublisher &publisher)
+	RF24 &rf24;
+	SubscriberHandler(RfPublisher &publisher, RF24 &rf24)
 			: publisher(publisher)
+			, rf24(rf24)
 	{ }
 
 	void messageAnalogRead(const uint8_t &pin, const uint16_t &value)
@@ -77,11 +79,22 @@ struct SubscriberHandler : Subscriber::Handler
 		}
 	}
 
-	virtual void handleNak(uint32_t hwm)
+	virtual void handleNak(uint32_t hwm, uint32_t sequence)
 	{
-		printf("sending ack for %d\n", hwm);
+		while(rf24.available())
+		{
+			uint8_t b;
+			rf24.read(&b, sizeof(b));
+		}
+		printf("\n[%d] sending ack for %d, got %d\n", millis(), hwm, sequence);
 		fflush(stdout);
 		publisher.sendNak(hwm);
+	}
+
+	virtual void recover(uint32_t hwm)
+	{
+		printf("\n[%d] Recovered from %d\n", millis(), hwm);
+		fflush(stdout);
 	}
 
 	virtual void nak(const uint32_t &subscriberHighWatermark)
@@ -108,7 +121,7 @@ int main(int argc, char *argv[])
 
 	RF24Output rf24Output(radio);
 	RfPublisher publisher(&rf24Output);
-	SubscriberHandler handler(publisher);
+	SubscriberHandler handler(publisher, radio);
 	Subscriber subscriber(&handler);
 
 	while(work)
@@ -140,7 +153,7 @@ void display(uint32_t temperatureInMilliC)
 		}
 	}
 	avg /= cnt;
-	printf("average(%d): %6.2f, current: %6.2f\n", cnt, avg / 1000., temperatureInMilliC / 1000.);
+	printf("average(%d): %6.2f, current: %6.2f\r", cnt, avg / 1000., temperatureInMilliC / 1000.);
 	fflush(stdout);
 }
 
@@ -156,7 +169,7 @@ void loop(RF24 radio, Subscriber &subscriber)
 	delay(100);
 	if (++pulse % 20 == 0)
 	{
-		printf("pulse %d\n", pulse);
+		printf("\npulse %d\n", pulse);
 		fflush(stdout);
 	}
 }

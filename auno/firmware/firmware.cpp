@@ -16,7 +16,7 @@ struct SubscriberHandler : RfSubscriber::Handler
 {
 	RfPublisher &publisher;
 
-	SubscriberHandler(RfPublisher &publisher)
+	SubscriberHandler(RfPublisher &publisher, RF24 &rf24)
 			:publisher(publisher)
 	{ }
 
@@ -24,12 +24,20 @@ struct SubscriberHandler : RfSubscriber::Handler
 	{
 	}
 
-	virtual void handleNak(uint32_t hwm)
+	virtual void handleNak(uint32_t hwm, uint32_t sequence)
+	{
+	}
+
+	virtual void recover(uint32_t hmw)
 	{
 	}
 
 	virtual void nak(const uint32_t &subscriberHighWatermark)
 	{
+		const uint32_t hwm = publisher.getHighWatermark();
+		Serial.print(hwm);
+		Serial.print(", naked=");
+		Serial.println(uint32_t(subscriberHighWatermark));
 		publisher.nak(subscriberHighWatermark);
 	}
 };
@@ -46,15 +54,13 @@ struct RF24Output : RingBufferOutput
     virtual void write(uint8_t const *buf, uint8_t len)
     {
         radio.stopListening();
-        bool written = radio.writeBlocking(buf, len, 2000);
-        bool txen = radio.txStandBy();
+        radio.writeBlocking(buf, len, 2000);
+        radio.txStandBy();
         radio.startListening();
-        Serial.print(written ? "written ok" : "not written. ");
-        Serial.println(txen ? "txen ok" : "not txen");
     }
 };
 
-const unsigned long heartbeatIntervalMs = 1000;
+const unsigned long heartbeatIntervalMs = 50;
 unsigned long timeMs = 0;
 
 void schedule(RF24 &radio, RfPublisher &publisher);
@@ -81,7 +87,7 @@ int main()
 
     RF24Output rf24Output(radio);
     RfPublisher ringBufferPublisher(&rf24Output);
-	SubscriberHandler subscriberHandler(ringBufferPublisher);
+	SubscriberHandler subscriberHandler(ringBufferPublisher, radio);
 	RfSubscriber subscriber(&subscriberHandler);
     Serial.println("initialised");
     Serial.flush();

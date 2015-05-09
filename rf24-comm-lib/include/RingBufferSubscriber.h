@@ -16,8 +16,9 @@ public:
 	struct Handler
 	{
 		virtual void handle(uint32_t messageId, uint8_t contentId, PayloadAccessor &input) = 0;
-		virtual void handleNak(uint32_t hwm) = 0;
+		virtual void handleNak(uint32_t hwm, uint32_t sequence) = 0;
 		virtual void nak(const uint32_t &subscriberHighWatermark) = 0;
+		virtual void recover(uint32_t hwm) = 0;
 	};
 private:
 	Handler *handler;
@@ -70,6 +71,11 @@ private:
 				handler->nak(subscriberHighWatermark);
 				break;
 			}
+			case CONTROL_NAK_BUFFER_OVERFLOW:
+			{
+				hwm = 0;
+				break;
+			}
 			default:
 				break;
 		}
@@ -80,6 +86,7 @@ private:
 		if (hwm == 0)
 		{
 			hwm = sequence;
+			handler->recover(hwm);
 		}
 
 		if(hwm == sequence)
@@ -89,7 +96,7 @@ private:
 		}
 		else if(hwm < sequence)
 		{
-			requestNak();
+			requestNak(sequence);
 		}
 	}
 
@@ -99,9 +106,9 @@ private:
 		handler->handle(this->hwm, id, accessor);
 	}
 	
-	void requestNak()
+	void requestNak(const uint32_t &sequence)
 	{
-		handler->handleNak(this->hwm);
+		handler->handleNak(this->hwm, sequence);
 	}
 };
 

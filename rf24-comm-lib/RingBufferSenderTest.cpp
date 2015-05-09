@@ -23,8 +23,9 @@ namespace
 	struct MockHandler : public TestSubject::Handler
 	{
 		MOCK_METHOD3(handle, void(uint32_t messageId, uint8_t contentId, TestSubject::PayloadAccessor &input));
-		MOCK_METHOD1(handleNak, void(uint32_t hwm));
+		MOCK_METHOD2(handleNak, void(uint32_t hwm, uint32_t sequence));
 		MOCK_METHOD1(nak, void(const uint32_t &subscriberHighWatermark));
+		MOCK_METHOD1(recover, void(const uint32_t hwm));
 	};
 
 	struct RingBufferLoopBackOutput : RingBufferOutput
@@ -102,7 +103,7 @@ namespace
 
 		loopBackOutput.broken = false;
 
-		EXPECT_CALL(handler, handleNak(2U))
+		EXPECT_CALL(handler, handleNak(2U, 3U))
 				.Times(1);
 		send();
 	}
@@ -114,7 +115,7 @@ namespace
 		send();
 		loopBackOutput.broken = false;
 
-		EXPECT_CALL(handler, handleNak(2U))
+		EXPECT_CALL(handler, handleNak(2U, 3U))
 				.Times(1);
 		send();
 
@@ -128,7 +129,7 @@ namespace
 	TEST_F(RingBufferSubscriberTest, shouldIgnoreReceived)
 	{
 		sendAndExpectFirst();
-		EXPECT_CALL(handler, handleNak(_))
+		EXPECT_CALL(handler, handleNak(_, _))
 				.Times(0);
 		publisher.nak(1U);
 	}
