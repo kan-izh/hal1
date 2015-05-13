@@ -6,7 +6,7 @@
 #include "ByteBuffer.h"
 
 template<
-		uint8_t payloadSize = 32
+		uint8_t payloadSize
 >
 class RingBufferSubscriber
 {

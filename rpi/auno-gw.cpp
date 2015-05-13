@@ -63,7 +63,7 @@ struct SubscriberHandler : Subscriber::Handler
 		}
 	}
 
-	virtual void handle(uint32_t messageId, uint8_t contentId, RingBufferSubscriber<32>::PayloadAccessor &input)
+	virtual void handle(uint32_t messageId, uint8_t contentId, Subscriber::PayloadAccessor &input)
 	{
 		switch (contentId)
 		{
@@ -110,6 +110,7 @@ int main(int argc, char *argv[])
 {
 	RF24 radio(RPI_V2_GPIO_P1_22, RPI_V2_GPIO_P1_24, BCM2835_SPI_SPEED_8MHZ);
 	radio.begin();
+	radio.setPayloadSize(RF_PAYLOAD_SIZE);
 	radio.setChannel(RF_COMM_CHANNEL_ARDUINO_TO_RPI);
 	radio.setPALevel(RF24_PA_MAX);
 	radio.setAddressWidth(RF_COMM_ADDRESS_WIDTH);

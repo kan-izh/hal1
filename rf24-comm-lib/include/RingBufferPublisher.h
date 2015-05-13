@@ -13,7 +13,7 @@ struct RingBufferOutput
 
 template<
 		uint16_t bufferSize,
-		uint8_t payloadSize = 32
+		uint8_t payloadSize
 >
 class RingBufferPublisher
 {

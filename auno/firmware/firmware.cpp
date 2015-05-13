@@ -10,7 +10,7 @@
 //after build -- to flash
 //avrdude -V -c arduino -p m328p -b 115200 -P /dev/ttyACM3 -U flash:w:.build/firmware/firmware.hex
 typedef RingBufferSubscriber<RF_PAYLOAD_SIZE> RfSubscriber;
-typedef RingBufferPublisher<16, RF_PAYLOAD_SIZE> RfPublisher;
+typedef RingBufferPublisher<128, RF_PAYLOAD_SIZE> RfPublisher;
 
 struct SubscriberHandler : RfSubscriber::Handler
 {
@@ -20,7 +20,7 @@ struct SubscriberHandler : RfSubscriber::Handler
 			:publisher(publisher)
 	{ }
 
-	virtual void handle(uint32_t messageId, uint8_t contentId, RingBufferSubscriber<32>::PayloadAccessor &input)
+	virtual void handle(uint32_t messageId, uint8_t contentId, RfSubscriber::PayloadAccessor &input)
 	{
 	}
 
@@ -77,6 +77,7 @@ int main()
 
 	RF24 radio(RF_cepin, RF_cspin);
 	radio.begin();
+	radio.setPayloadSize(RF_PAYLOAD_SIZE);
 	radio.setAutoAck(true);
     radio.setChannel(RF_channel);
 	radio.setPALevel(RF24_PA_MAX);
