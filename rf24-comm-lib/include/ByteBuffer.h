@@ -18,7 +18,7 @@ public:
 	public:
 		Accessor(Buffer *buffer)
 		{
-			set(buffer);
+			assign(buffer);
 			reset();
 		}
 
@@ -27,7 +27,7 @@ public:
 			offset = 0;
 		}
 
-		void set(Buffer *buffer)
+		void assign(Buffer *buffer)
 		{
 			this->buffer = buffer;
 		}

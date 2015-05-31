@@ -41,7 +41,7 @@ private:
 		PayloadBuffer *nextBuffer = bufferAccessor.current() + 1;
 		if(nextBuffer - buffer >= bufferSize)
 			nextBuffer = buffer;
-		bufferAccessor.set(nextBuffer);
+		bufferAccessor.assign(nextBuffer);
 	}
 
 public:
@@ -117,7 +117,7 @@ public:
 		rewindTo -= bufferRewindDistance;
 		if(rewindTo < buffer)
 			rewindTo += bufferSize;
-		bufferAccessor.set(rewindTo);
+		bufferAccessor.assign(rewindTo);
 		// send all naked messages up to original position
 		while (missingMessagesCount--)
 		{

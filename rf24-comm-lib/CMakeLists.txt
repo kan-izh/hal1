@@ -6,7 +6,9 @@ include_directories(${gmock_SOURCE_DIR}/include)
 
 set(RingBufferPublisher_sources
 	include/ByteBuffer.h
+	include/RingBuffer.h
 	include/RingBufferPublisher.h
+	include/RingBufferSubscriber.h
 )
 
 set(RingBufferPublisherTest_sources
