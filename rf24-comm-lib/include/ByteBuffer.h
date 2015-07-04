@@ -16,6 +16,11 @@ public:
 		Buffer *buffer;
 		uint8_t offset;
 	public:
+		Accessor(const Accessor &src)
+		: buffer(src.buffer)
+		, offset(src.offset)
+		{ }
+
 		Accessor(Buffer *buffer)
 		{
 			assign(buffer);
@@ -57,6 +62,15 @@ public:
 		{
 			*reinterpret_cast<T *>(buffer->getBuf() + offset) = value;
 			offset += sizeof(T);
+			return *this;
+		}
+
+		template<uint8_t otherSize>
+		Accessor &append(typename ByteBuffer<otherSize>::Accessor &other)
+		{
+			uint8_t *cur = buffer->getBuf() + offset;
+			memcpy(cur, other.getBuf(), sizeof(uint8_t) * other.getOffset());
+			offset += other.getOffset();
 			return *this;
 		}
 		

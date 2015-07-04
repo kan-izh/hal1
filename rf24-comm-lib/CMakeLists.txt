@@ -6,21 +6,23 @@ include_directories(${gmock_SOURCE_DIR}/include)
 
 set(RingBufferPublisher_sources
 	include/ByteBuffer.h
+	include/CommChannel.h
 	include/RingBuffer.h
 	include/RingBufferPublisher.h
 	include/RingBufferSubscriber.h
 )
 
-set(RingBufferPublisherTest_sources
+set(CommLibTest_sources
 	${RingBufferPublisher_sources}
+	CommChannelTest.cpp
 	RingBufferPublisherTest.cpp
 	RingBufferSenderTest.cpp
 )
 
-add_executable(RingBufferPublisherTest ${RingBufferPublisherTest_sources})
-target_link_libraries(RingBufferPublisherTest
+add_executable(CommLibTest ${CommLibTest_sources})
+target_link_libraries(CommLibTest
 	gtest_main
 	gmock_main)
-add_test(NAME RingBufferPublisherTest
-	COMMAND RingBufferPublisherTest)
+add_test(NAME CommLibTest
+	COMMAND CommLibTest)
 
