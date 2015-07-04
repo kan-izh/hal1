@@ -4,7 +4,8 @@
 #include "gmock/gmock.h"
 #include "CommChannel.h"
 
-const int64_t someData = -1951245124;
+const int64_t someData1 = -1951245124;
+const uint32_t someData2 = 2014567215;
 
 namespace
 {
@@ -50,11 +51,11 @@ namespace
 		}
 	};
 
-	MATCHER_P(HasData, data, "")
+	MATCHER_P(HasData, expected, "")
 	{
-		data_type actual = arg.template take<data_type>();
-		*result_listener << "Data is " << actual;
-		return actual == data;
+		expected_type actual = arg.template take<expected_type>();
+		*result_listener << "actual = " << actual << ", expected = " << expected;
+		return actual == expected;
 	}
 
 	struct CommChannelTest : public ::testing::Test
@@ -73,12 +74,28 @@ namespace
 
 	};
 
-	TEST_F(CommChannelTest, shouldDoSomething)
+	TEST_F(CommChannelTest, shouldSendSimpleOneFrame)
 	{
 		testSubject1.sendFrame(testSubject1.currentFrame()
-				.put(someData)
+				.put(someData1)
 		);
-		EXPECT_CALL(receiver2, receive(HasData(someData)));
+		EXPECT_CALL(receiver2, receive(HasData(someData1)));
+		connection.transferTo(testSubject2);
+	}
+
+	TEST_F(CommChannelTest, shouldSendSimpleTwoFrames)
+	{
+		testSubject1.sendFrame(testSubject1.currentFrame()
+				.put(someData1)
+		);
+		testSubject1.sendFrame(testSubject1.currentFrame()
+				.put(someData2)
+		);
+		::testing::Sequence receiverSeq;
+		EXPECT_CALL(receiver2, receive(HasData(someData1)))
+				.InSequence(receiverSeq);
+		EXPECT_CALL(receiver2, receive(HasData(someData2)))
+				.InSequence(receiverSeq);
 		connection.transferTo(testSubject2);
 	}
 
