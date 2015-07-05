@@ -69,8 +69,8 @@ public:
 		Accessor &append(typename ByteBuffer<otherSize>::Accessor &other)
 		{
 			uint8_t *cur = buffer->getBuf() + offset;
-			memcpy(cur, other.getBuf(), sizeof(uint8_t) * other.getOffset());
-			offset += other.getOffset();
+			memcpy(cur, other.getBuf(), sizeof(uint8_t) * otherSize);
+			offset += otherSize;
 			return *this;
 		}
 		

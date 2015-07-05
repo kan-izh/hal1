@@ -9,7 +9,7 @@ const uint32_t someData2 = 2014567215;
 
 namespace
 {
-	using ::testing::_;
+	using namespace ::testing;
 
 	static const int bufferSize = 7;
 	static const int payloadSize = 23;
@@ -38,7 +38,15 @@ namespace
 			inFlight.push(payload);
 		}
 
-		void transferTo(TestSubject &target, int numberOfFrames = std::numeric_limits<int>::max())
+		void drop(int numberOfFrames)
+		{
+			while (numberOfFrames-- > 0)
+			{
+				inFlight.pop();
+			}
+		}
+
+		void transferTo(TestSubject &target, int numberOfFrames)
 		{
 			while (numberOfFrames-- > 0 && !inFlight.empty())
 			{
@@ -49,6 +57,11 @@ namespace
 				inFlight.pop();
 			}
 		}
+
+		void assertNoFrames()
+		{
+			ASSERT_EQ(0, inFlight.size());
+		}
 	};
 
 	MATCHER_P(HasData, expected, "")
@@ -57,6 +70,8 @@ namespace
 		*result_listener << "actual = " << actual << ", expected = " << expected;
 		return actual == expected;
 	}
+
+	static const uint32_t BASE_TIME = 123000;
 
 	struct CommChannelTest : public ::testing::Test
 	{
@@ -70,33 +85,53 @@ namespace
 		CommChannelTest()
 				: testSubject1(timeSource, connection, receiver1)
 				, testSubject2(timeSource, connection, receiver2)
-		{ }
+		{
+			EXPECT_CALL(timeSource, currentMicros()).WillRepeatedly(Return(BASE_TIME));
+		}
 
 	};
 
 	TEST_F(CommChannelTest, shouldSendSimpleOneFrame)
 	{
+		EXPECT_CALL(receiver2, receive(HasData(someData1)));
+
 		testSubject1.sendFrame(testSubject1.currentFrame()
 				.put(someData1)
 		);
-		EXPECT_CALL(receiver2, receive(HasData(someData1)));
-		connection.transferTo(testSubject2);
+		connection.transferTo(testSubject2, 1);
 	}
 
 	TEST_F(CommChannelTest, shouldSendSimpleTwoFrames)
 	{
+		::testing::Sequence receiverSeq;
+		EXPECT_CALL(receiver2, receive(HasData(someData1)))
+				.InSequence(receiverSeq);
+		EXPECT_CALL(receiver2, receive(HasData(someData2)))
+				.InSequence(receiverSeq);
+
 		testSubject1.sendFrame(testSubject1.currentFrame()
 				.put(someData1)
 		);
 		testSubject1.sendFrame(testSubject1.currentFrame()
 				.put(someData2)
 		);
-		::testing::Sequence receiverSeq;
-		EXPECT_CALL(receiver2, receive(HasData(someData1)))
-				.InSequence(receiverSeq);
-		EXPECT_CALL(receiver2, receive(HasData(someData2)))
-				.InSequence(receiverSeq);
-		connection.transferTo(testSubject2);
+		connection.transferTo(testSubject2, 2);
+	}
+
+	TEST_F(CommChannelTest, shouldRecoverOneFrame)
+	{
+		EXPECT_CALL(receiver2, receive(HasData(someData1)));
+
+		testSubject1.sendFrame(testSubject1.currentFrame()
+				.put(someData1)
+		);
+		connection.drop(1);
+		testSubject1.processIdle();
+		connection.assertNoFrames();
+
+		EXPECT_CALL(timeSource, currentMicros()).WillRepeatedly(Return(BASE_TIME + testSubject1.getTimeoutMicros()));
+		testSubject1.processIdle();
+		connection.transferTo(testSubject2, 1);
 	}
 
 }
