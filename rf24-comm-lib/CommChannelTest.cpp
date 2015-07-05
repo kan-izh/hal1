@@ -4,8 +4,8 @@
 #include "gmock/gmock.h"
 #include "CommChannel.h"
 
-const int64_t someData1 = -1951245124;
-const uint32_t someData2 = 2014567215;
+const int64_t someData1 = -1918171615;
+const uint32_t someData2 = 2021222324;
 
 namespace
 {
@@ -14,7 +14,6 @@ namespace
 	static const int bufferSize = 7;
 	static const int payloadSize = 23;
 	typedef CommChannel<bufferSize, payloadSize> TestSubject;
-	typedef TestSubject::BufferAccessor BufferAccessor;
 
 	struct MockTimeSource : TimeSource
 	{
@@ -30,6 +29,7 @@ namespace
 	struct MockCommChannelConnection : CommChannelOutput
 	{
 		std::queue<std::vector<uint8_t> > inFlight;
+		TestSubject *target;
 
 		virtual void write(uint8_t const *buf, uint8_t len)
 		{
@@ -46,14 +46,14 @@ namespace
 			}
 		}
 
-		void transferTo(TestSubject &target, int numberOfFrames)
+		void transfer(int numberOfFrames)
 		{
 			while (numberOfFrames-- > 0 && !inFlight.empty())
 			{
 				std::vector<uint8_t> &payload = inFlight.front();
-				ASSERT_LE(payload.size(), target.getBufSize());
-				memcpy(target.getBuf(), &payload[0], payload.size() * sizeof(uint8_t));
-				target.processBuf();
+				ASSERT_LE(payload.size(), target->getBufSize());
+				memcpy(target->getBuf(), &payload[0], payload.size() * sizeof(uint8_t));
+				target->processBuf();
 				inFlight.pop();
 			}
 		}
@@ -78,15 +78,18 @@ namespace
 		MockTimeSource timeSource;
 		TestSubject testSubject1;
 		TestSubject testSubject2;
-		MockCommChannelConnection connection;
+		MockCommChannelConnection connection12;
+		MockCommChannelConnection connection21;
 		MockReceiver receiver1;
 		MockReceiver receiver2;
 
 		CommChannelTest()
-				: testSubject1(timeSource, connection, receiver1)
-				, testSubject2(timeSource, connection, receiver2)
+				: testSubject1(timeSource, connection12, receiver1)
+				, testSubject2(timeSource, connection21, receiver2)
 		{
 			EXPECT_CALL(timeSource, currentMicros()).WillRepeatedly(Return(BASE_TIME));
+			connection12.target = &testSubject2;
+			connection21.target = &testSubject1;
 		}
 
 	};
@@ -98,7 +101,7 @@ namespace
 		testSubject1.sendFrame(testSubject1.currentFrame()
 				.put(someData1)
 		);
-		connection.transferTo(testSubject2, 1);
+		connection12.transfer(1);
 	}
 
 	TEST_F(CommChannelTest, shouldSendSimpleTwoFrames)
@@ -115,7 +118,7 @@ namespace
 		testSubject1.sendFrame(testSubject1.currentFrame()
 				.put(someData2)
 		);
-		connection.transferTo(testSubject2, 2);
+		connection12.transfer(2);
 	}
 
 	TEST_F(CommChannelTest, shouldRecoverOneFrame)
@@ -125,13 +128,33 @@ namespace
 		testSubject1.sendFrame(testSubject1.currentFrame()
 				.put(someData1)
 		);
-		connection.drop(1);
+		connection12.drop(1);
 		testSubject1.processIdle();
-		connection.assertNoFrames();
+		connection12.assertNoFrames();
+
+		EXPECT_CALL(timeSource, currentMicros()).WillRepeatedly(Return(BASE_TIME + testSubject1.getTimeoutMicros() - 1));
+		testSubject1.processIdle();
+		connection12.assertNoFrames();
 
 		EXPECT_CALL(timeSource, currentMicros()).WillRepeatedly(Return(BASE_TIME + testSubject1.getTimeoutMicros()));
 		testSubject1.processIdle();
-		connection.transferTo(testSubject2, 1);
+		connection12.transfer(1);
 	}
+/*
+	TEST_F(CommChannelTest, shouldAckOneFrame)
+	{
+		EXPECT_CALL(receiver2, receive(HasData(someData1)));
 
+		testSubject1.sendFrame(testSubject1.currentFrame()
+				.put(someData1)
+		);
+		connection12.transfer(1);
+		testSubject2.processIdle();
+		connection21.transfer(1);
+
+		EXPECT_CALL(timeSource, currentMicros()).WillRepeatedly(Return(BASE_TIME + testSubject1.getTimeoutMicros()));
+		testSubject1.processIdle();
+		connection12.assertNoFrames();
+	}
+*/
 }
