@@ -32,6 +32,7 @@ public:
 
 private:
 	static const int defaultTimeoutMicros = 10000;
+	static const Sequence cmd_ack = Sequence(-1) - Sequence(0);
 	struct RingBuffer
 	{
 		RingBuffer()
@@ -52,6 +53,8 @@ public:
 	CommChannel(TimeSource &timeSource, CommChannelOutput &output, Receiver &receiver)
 			: timeSource(timeSource)
 			, sender(output)
+			, inboundSequence(0)
+			, inboundAckedSequence(0)
 			, receiver(receiver)
 			, timeoutMicros(defaultTimeoutMicros)
 	{ }
@@ -84,8 +87,15 @@ public:
 	{
 		typename ByteBuffer<payloadSize>::Accessor accessor(&inbound);
 		const Sequence &senderSequence = accessor.template take<Sequence>();
-		const uint32_t &timestamp = accessor.template take<uint32_t>();
-		receiver.receive(accessor);
+		switch (senderSequence)
+		{
+			case cmd_ack:
+				inboundAck(accessor);
+				break;
+			default:
+				inboundData(accessor, senderSequence);
+				break;
+		}
 	}
 
 	uint32_t getTimeoutMicros() const
@@ -102,10 +112,42 @@ public:
 	{
 		uint32_t currentMicros = timeSource.currentMicros();
 		resendNotAckedFrames(currentMicros);
+		sendAcks();
 		return 0;
 	}
 
 private:
+
+	void inboundAck(typename ByteBuffer<payloadSize>::Accessor &accessor)
+	{
+		const Sequence &acked = accessor.template take<Sequence>();
+		outbound.ackedSequence = acked;
+	}
+
+	void inboundData(typename ByteBuffer<payloadSize>::Accessor &accessor, const Sequence &senderSequence)
+	{
+		if (senderSequence == inboundSequence)
+		{
+			const uint32_t &timestamp = accessor.template take<uint32_t>();
+			receiver.receive(accessor);
+			++inboundSequence;
+		}
+	}
+
+	void sendAcks()
+	{
+		if (inboundAckedSequence != inboundSequence)
+		{
+			ByteBuffer<payloadSize> payload;
+			typename ByteBuffer<payloadSize>::Accessor payloadAccessor(&payload);
+			payloadAccessor
+					.put(cmd_ack)
+					.put(inboundSequence)
+					.clear();
+			sender.write(payload.getBuf(), payloadSize);
+			inboundAckedSequence = inboundSequence;
+		}
+	}
 
 	void resendNotAckedFrames(uint32_t currentMicros)
 	{
@@ -137,6 +179,8 @@ private:
 	Receiver &receiver;
 
 	ByteBuffer<payloadSize> inbound;
+	Sequence inboundSequence;
+	Sequence inboundAckedSequence;
 	RingBuffer outbound;
 	uint32_t timeoutMicros;
 };

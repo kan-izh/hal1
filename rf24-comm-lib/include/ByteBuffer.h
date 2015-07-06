@@ -58,7 +58,7 @@ public:
 		}
 
 		template<typename T>
-		Accessor &put(const T &value)
+		Accessor &put(const T value)
 		{
 			*reinterpret_cast<T *>(buffer->getBuf() + offset) = value;
 			offset += sizeof(T);

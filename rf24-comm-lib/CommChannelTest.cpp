@@ -48,6 +48,7 @@ namespace
 
 		void transfer(int numberOfFrames)
 		{
+			ASSERT_LE(numberOfFrames, inFlight.size());
 			while (numberOfFrames-- > 0 && !inFlight.empty())
 			{
 				std::vector<uint8_t> &payload = inFlight.front();
@@ -140,7 +141,7 @@ namespace
 		testSubject1.processIdle();
 		connection12.transfer(1);
 	}
-/*
+
 	TEST_F(CommChannelTest, shouldAckOneFrame)
 	{
 		EXPECT_CALL(receiver2, receive(HasData(someData1)));
@@ -156,5 +157,4 @@ namespace
 		testSubject1.processIdle();
 		connection12.assertNoFrames();
 	}
-*/
 }
