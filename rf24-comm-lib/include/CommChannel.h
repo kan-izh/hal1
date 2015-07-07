@@ -23,7 +23,11 @@ class CommChannel
 {
 public:
 	typedef uint16_t Sequence;
-	typedef ByteBuffer<payloadSize - sizeof(Sequence)> Buffer;
+private:
+	typedef uint8_t Command;
+	static const size_t internalOutboundBufferSize = payloadSize - sizeof(Command) - sizeof(Sequence);
+public:
+	typedef ByteBuffer<internalOutboundBufferSize> Buffer;
 	typedef typename Buffer::Accessor BufferAccessor;
 	struct Receiver
 	{
@@ -32,7 +36,8 @@ public:
 
 private:
 	static const int defaultTimeoutMicros = 10000;
-	static const Sequence cmd_ack = Sequence(-1) - Sequence(0);
+	static const Command cmd_data = 1;
+	static const Command cmd_ack = 2;
 	struct RingBuffer
 	{
 		RingBuffer()
@@ -86,14 +91,16 @@ public:
 	void processBuf()
 	{
 		typename ByteBuffer<payloadSize>::Accessor accessor(&inbound);
-		const Sequence &senderSequence = accessor.template take<Sequence>();
-		switch (senderSequence)
+		const Command &command = accessor.template take<Command>();
+		switch (command)
 		{
 			case cmd_ack:
 				inboundAck(accessor);
 				break;
+			case cmd_data:
+				inboundData(accessor);
+				break;
 			default:
-				inboundData(accessor, senderSequence);
 				break;
 		}
 	}
@@ -124,8 +131,9 @@ private:
 		outbound.ackedSequence = acked;
 	}
 
-	void inboundData(typename ByteBuffer<payloadSize>::Accessor &accessor, const Sequence &senderSequence)
+	void inboundData(typename ByteBuffer<payloadSize>::Accessor &accessor)
 	{
+		const Sequence &senderSequence = accessor.template take<Sequence>();
 		if (senderSequence == inboundSequence)
 		{
 			const uint32_t &timestamp = accessor.template take<uint32_t>();
@@ -140,10 +148,9 @@ private:
 		{
 			ByteBuffer<payloadSize> payload;
 			typename ByteBuffer<payloadSize>::Accessor payloadAccessor(&payload);
-			payloadAccessor
-					.put(cmd_ack)
-					.put(inboundSequence)
-					.clear();
+			payloadAccessor.put(cmd_ack);
+			payloadAccessor.put(inboundSequence);
+			payloadAccessor.clear();
 			sender.write(payload.getBuf(), payloadSize);
 			inboundAckedSequence = inboundSequence;
 		}
@@ -167,10 +174,10 @@ private:
 	{
 		ByteBuffer<payloadSize> payload;
 		typename ByteBuffer<payloadSize>::Accessor payloadAccessor(&payload);
-		payloadAccessor
-				.put(seq)
-				.template append<payloadSize - sizeof(Sequence)>(accessor)
-				.clear();
+		payloadAccessor.put(cmd_data);
+		payloadAccessor.put(seq);
+		payloadAccessor.template append<internalOutboundBufferSize>(accessor);
+		payloadAccessor.clear();
 		sender.write(payload.getBuf(), payloadSize);
 	}
 private:

@@ -107,11 +107,9 @@ namespace
 
 	TEST_F(CommChannelTest, shouldSendSimpleTwoFrames)
 	{
-		::testing::Sequence receiverSeq;
-		EXPECT_CALL(receiver2, receive(HasData(someData1)))
-				.InSequence(receiverSeq);
-		EXPECT_CALL(receiver2, receive(HasData(someData2)))
-				.InSequence(receiverSeq);
+		Sequence receiverSeq;
+		EXPECT_CALL(receiver2, receive(HasData(someData1))).InSequence(receiverSeq);
+		EXPECT_CALL(receiver2, receive(HasData(someData2))).InSequence(receiverSeq);
 
 		testSubject1.sendFrame(testSubject1.currentFrame()
 				.put(someData1)
@@ -157,4 +155,25 @@ namespace
 		testSubject1.processIdle();
 		connection12.assertNoFrames();
 	}
+
+/*
+	TEST_F(CommChannelTest, shouldRecoverTwoFrames)
+	{
+		Sequence receiverSeq;
+		EXPECT_CALL(receiver2, receive(HasData(someData1))).InSequence(receiverSeq);
+		EXPECT_CALL(receiver2, receive(HasData(someData2))).InSequence(receiverSeq);
+
+		testSubject1.sendFrame(testSubject1.currentFrame()
+				.put(someData1)
+		);
+		testSubject1.sendFrame(testSubject1.currentFrame()
+				.put(someData2)
+		);
+		connection12.drop(1);
+		connection12.transfer(1);
+		testSubject2.processIdle();
+		connection21.transfer(1);
+		connection12.transfer(1);
+	}
+*/
 }
