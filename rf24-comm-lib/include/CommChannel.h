@@ -38,6 +38,7 @@ private:
 	static const int defaultTimeoutMicros = 10000;
 	static const Command cmd_data = 1;
 	static const Command cmd_ack = 2;
+	static const Command cmd_nak = 3;
 	struct RingBuffer
 	{
 		RingBuffer()
@@ -100,6 +101,9 @@ public:
 			case cmd_data:
 				inboundData(accessor);
 				break;
+			case cmd_nak:
+				inboundNak(accessor);
+				break;
 			default:
 				break;
 		}
@@ -125,6 +129,16 @@ public:
 
 private:
 
+	void inboundNak(typename ByteBuffer<payloadSize>::Accessor &accessor)
+	{
+		const Sequence &nakFrom = accessor.template take<Sequence>();
+		for(Sequence seq = nakFrom; seq < outbound.sequence; ++seq)
+		{
+			BufferAccessor data(outbound.bufferAt(seq));
+			write(data, seq);
+		}
+	}
+
 	void inboundAck(typename ByteBuffer<payloadSize>::Accessor &accessor)
 	{
 		const Sequence &acked = accessor.template take<Sequence>();
@@ -139,6 +153,15 @@ private:
 			const uint32_t &timestamp = accessor.template take<uint32_t>();
 			receiver.receive(accessor);
 			++inboundSequence;
+		}
+		else
+		{
+			ByteBuffer<payloadSize> payload;
+			typename ByteBuffer<payloadSize>::Accessor payloadAccessor(&payload);
+			payloadAccessor.put(cmd_nak);
+			payloadAccessor.put(inboundSequence);
+			payloadAccessor.clear();
+			sender.write(payload.getBuf(), payloadSize);
 		}
 	}
 
@@ -177,7 +200,6 @@ private:
 		payloadAccessor.put(cmd_data);
 		payloadAccessor.put(seq);
 		payloadAccessor.template append<internalOutboundBufferSize>(accessor);
-		payloadAccessor.clear();
 		sender.write(payload.getBuf(), payloadSize);
 	}
 private:

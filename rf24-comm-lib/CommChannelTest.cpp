@@ -156,7 +156,6 @@ namespace
 		connection12.assertNoFrames();
 	}
 
-/*
 	TEST_F(CommChannelTest, shouldRecoverTwoFrames)
 	{
 		Sequence receiverSeq;
@@ -173,7 +172,6 @@ namespace
 		connection12.transfer(1);
 		testSubject2.processIdle();
 		connection21.transfer(1);
-		connection12.transfer(1);
+		connection12.transfer(2);
 	}
-*/
 }
