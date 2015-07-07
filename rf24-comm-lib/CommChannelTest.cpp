@@ -31,6 +31,11 @@ namespace
 		std::queue<std::vector<uint8_t> > inFlight;
 		TestSubject *target;
 
+		~MockCommChannelConnection()
+		{
+			assertNoFrames();
+		}
+
 		virtual void write(uint8_t const *buf, uint8_t len)
 		{
 			std::vector<uint8_t> payload;
@@ -153,7 +158,6 @@ namespace
 
 		EXPECT_CALL(timeSource, currentMicros()).WillRepeatedly(Return(BASE_TIME + testSubject1.getTimeoutMicros()));
 		testSubject1.processIdle();
-		connection12.assertNoFrames();
 	}
 
 	TEST_F(CommChannelTest, shouldRecoverTwoFrames)
