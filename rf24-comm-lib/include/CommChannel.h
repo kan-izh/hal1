@@ -134,7 +134,7 @@ private:
 	void inboundNak(typename ByteBuffer<payloadSize>::Accessor &accessor)
 	{
 		const Sequence &nakFrom = accessor.template take<Sequence>();
-		for(Sequence seq = nakFrom; seq < outbound.sequence; ++seq)
+		for(Sequence seq = nakFrom; seq != outbound.sequence; ++seq)
 		{
 			BufferAccessor data(outbound.bufferAt(seq));
 			write(data, seq);
@@ -154,6 +154,7 @@ private:
 		{
 			receiver.restart();
 			joined = true;
+			inboundSequence = senderSequence;
 		}
 		if (senderSequence == inboundSequence)
 		{

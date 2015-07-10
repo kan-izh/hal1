@@ -1,11 +1,28 @@
-#include <queue>
 #include <vector>
+#include <deque>
 #include "gtest/gtest.h"
 #include "gmock/gmock.h"
 #include "CommChannel.h"
 
 const int64_t someData1 = -1918171615;
 const uint32_t someData2 = 2021222324;
+const uint8_t someData3 = 33;
+
+std::ostream &operator<<(std::ostream &os, const std::deque<std::vector<uint8_t> > &inFlight)
+{
+	for(std::deque<std::vector<uint8_t> >::const_iterator payloadIt = inFlight.begin();
+			payloadIt != inFlight.end();
+			++payloadIt)
+	{
+		for(std::vector<uint8_t>::const_iterator it = payloadIt->begin(); it != payloadIt->end(); ++it)
+		{
+			if(it != payloadIt->begin())  os << ":";
+			os << std::setfill('0') << std::setw(2) << std::hex << int(*it);
+		}
+		os << std::endl;
+	}
+	return os;
+}
 
 namespace
 {
@@ -26,10 +43,9 @@ namespace
 		MOCK_METHOD0(restart, void());
 	};
 
-
 	struct MockCommChannelConnection : CommChannelOutput
 	{
-		std::queue<std::vector<uint8_t> > inFlight;
+		std::deque<std::vector<uint8_t> > inFlight;
 		TestSubject *target;
 
 		~MockCommChannelConnection()
@@ -41,14 +57,14 @@ namespace
 		{
 			std::vector<uint8_t> payload;
 			payload.assign(buf, buf + len);
-			inFlight.push(payload);
+			inFlight.push_back(payload);
 		}
 
 		void drop(int numberOfFrames)
 		{
 			while (numberOfFrames-- > 0)
 			{
-				inFlight.pop();
+				inFlight.pop_front();
 			}
 		}
 
@@ -61,13 +77,13 @@ namespace
 				ASSERT_LE(payload.size(), target->getBufSize());
 				memcpy(target->getBuf(), &payload[0], payload.size() * sizeof(uint8_t));
 				target->processBuf();
-				inFlight.pop();
+				inFlight.pop_front();
 			}
 		}
 
 		void assertNoFrames()
 		{
-			ASSERT_EQ(0, inFlight.size());
+			ASSERT_EQ(0, inFlight.size()) << inFlight;
 		}
 	};
 
@@ -165,23 +181,47 @@ namespace
 		testSubject1.processIdle();
 	}
 
-	TEST_F(CommChannelTest, shouldRecoverTwoFrames)
+	TEST_F(CommChannelTest, shouldRecoverLostFrame)
 	{
 		Sequence receiverSeq;
 		EXPECT_CALL(receiver2, restart()).InSequence(receiverSeq);
 		EXPECT_CALL(receiver2, receive(HasData(someData1))).InSequence(receiverSeq);
 		EXPECT_CALL(receiver2, receive(HasData(someData2))).InSequence(receiverSeq);
+		EXPECT_CALL(receiver2, receive(HasData(someData3))).InSequence(receiverSeq);
 
 		testSubject1.sendFrame(testSubject1.currentFrame()
 				.put(someData1)
 		);
+		connection12.transfer(1);
 		testSubject1.sendFrame(testSubject1.currentFrame()
 				.put(someData2)
 		);
 		connection12.drop(1);
+		testSubject1.sendFrame(testSubject1.currentFrame()
+				.put(someData3)
+		);
+		connection12.transfer(1);
+
+		testSubject2.processIdle();
+		connection21.transfer(2);
+		connection12.transfer(2);
+	}
+
+	TEST_F(CommChannelTest, shouldLateJoin)
+	{
+		Sequence receiverSeq;
+		EXPECT_CALL(receiver2, restart()).InSequence(receiverSeq);
+		EXPECT_CALL(receiver2, receive(HasData(someData2))).InSequence(receiverSeq);
+
+		testSubject1.sendFrame(testSubject1.currentFrame()
+				.put(someData1)
+		);
+		connection12.drop(1);
+		testSubject1.sendFrame(testSubject1.currentFrame()
+				.put(someData2)
+		);
 		connection12.transfer(1);
 		testSubject2.processIdle();
 		connection21.transfer(1);
-		connection12.transfer(2);
 	}
 }
