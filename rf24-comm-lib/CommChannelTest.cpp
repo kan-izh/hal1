@@ -23,6 +23,7 @@ namespace
 	struct MockReceiver : TestSubject::Receiver
 	{
 		MOCK_METHOD1(receive, void(typename ByteBuffer<payloadSize>::Accessor &));
+		MOCK_METHOD0(restart, void());
 	};
 
 
@@ -102,6 +103,7 @@ namespace
 
 	TEST_F(CommChannelTest, shouldSendSimpleOneFrame)
 	{
+		EXPECT_CALL(receiver2, restart());
 		EXPECT_CALL(receiver2, receive(HasData(someData1)));
 
 		testSubject1.sendFrame(testSubject1.currentFrame()
@@ -113,6 +115,7 @@ namespace
 	TEST_F(CommChannelTest, shouldSendSimpleTwoFrames)
 	{
 		Sequence receiverSeq;
+		EXPECT_CALL(receiver2, restart()).InSequence(receiverSeq);
 		EXPECT_CALL(receiver2, receive(HasData(someData1))).InSequence(receiverSeq);
 		EXPECT_CALL(receiver2, receive(HasData(someData2))).InSequence(receiverSeq);
 
@@ -127,6 +130,7 @@ namespace
 
 	TEST_F(CommChannelTest, shouldRecoverOneFrame)
 	{
+		EXPECT_CALL(receiver2, restart());
 		EXPECT_CALL(receiver2, receive(HasData(someData1)));
 
 		testSubject1.sendFrame(testSubject1.currentFrame()
@@ -147,6 +151,7 @@ namespace
 
 	TEST_F(CommChannelTest, shouldAckOneFrame)
 	{
+		EXPECT_CALL(receiver2, restart());
 		EXPECT_CALL(receiver2, receive(HasData(someData1)));
 
 		testSubject1.sendFrame(testSubject1.currentFrame()
@@ -163,6 +168,7 @@ namespace
 	TEST_F(CommChannelTest, shouldRecoverTwoFrames)
 	{
 		Sequence receiverSeq;
+		EXPECT_CALL(receiver2, restart()).InSequence(receiverSeq);
 		EXPECT_CALL(receiver2, receive(HasData(someData1))).InSequence(receiverSeq);
 		EXPECT_CALL(receiver2, receive(HasData(someData2))).InSequence(receiverSeq);
 

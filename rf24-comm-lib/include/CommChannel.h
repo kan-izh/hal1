@@ -32,6 +32,7 @@ public:
 	struct Receiver
 	{
 		virtual void receive(typename ByteBuffer<payloadSize>::Accessor &data) = 0;
+		virtual void restart() = 0;
 	};
 
 private:
@@ -63,6 +64,7 @@ public:
 			, inboundAckedSequence(0)
 			, receiver(receiver)
 			, timeoutMicros(defaultTimeoutMicros)
+			, joined(false)
 	{ }
 
 	BufferAccessor currentFrame()
@@ -148,6 +150,11 @@ private:
 	void inboundData(typename ByteBuffer<payloadSize>::Accessor &accessor)
 	{
 		const Sequence &senderSequence = accessor.template take<Sequence>();
+		if (!joined)
+		{
+			receiver.restart();
+			joined = true;
+		}
 		if (senderSequence == inboundSequence)
 		{
 			const uint32_t &timestamp = accessor.template take<uint32_t>();
@@ -203,6 +210,7 @@ private:
 		sender.write(payload.getBuf(), payloadSize);
 	}
 private:
+	bool joined;
 	TimeSource &timeSource;
 	CommChannelOutput &sender;
 	Receiver &receiver;
