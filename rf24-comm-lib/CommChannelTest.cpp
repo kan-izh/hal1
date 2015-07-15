@@ -224,4 +224,21 @@ namespace
 		testSubject2.processIdle();
 		connection21.transfer(1);
 	}
+
+	TEST_F(CommChannelTest, shouldSendWrappingBuffer)
+	{
+		Sequence receiverSeq;
+		EXPECT_CALL(receiver2, restart()).InSequence(receiverSeq);
+		for(int i=0; i<bufferSize*3; ++i)
+		{
+			const int expected = i * 3 + 7;
+			EXPECT_CALL(receiver2, receive(HasData(expected))).InSequence(receiverSeq);
+			testSubject1.sendFrame(testSubject1.currentFrame()
+					.put(expected)
+			);
+			connection12.transfer(1);
+			testSubject2.processIdle();
+			connection21.transfer(1);
+		}
+	}
 }
