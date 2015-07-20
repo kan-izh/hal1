@@ -4,9 +4,9 @@
 #include "gmock/gmock.h"
 #include "CommChannel.h"
 
-const int64_t someData1 = -1918171615;
-const uint32_t someData2 = 2021222324;
-const uint8_t someData3 = 33;
+const int64_t someData1 = int64_t(0x1918171615141312);
+const uint32_t someData2 = uint32_t(0x20212223);
+const uint8_t someData3 = 0x33;
 
 std::ostream &operator<<(std::ostream &os, const std::deque<std::vector<uint8_t> > &inFlight)
 {
@@ -115,6 +115,17 @@ namespace
 			connection21.target = &testSubject1;
 		}
 
+		void oneInitFrame(const Sequence &seq)
+		{
+			EXPECT_CALL(receiver2, restart()).InSequence(seq);
+			EXPECT_CALL(receiver2, receive(HasData(someData1))).InSequence(seq);
+			testSubject1.sendFrame(testSubject1.currentFrame()
+					.put(someData1)
+			);
+			connection12.transfer(1);
+			testSubject2.processIdle();
+			connection21.transfer(1);
+		}
 	};
 
 	TEST_F(CommChannelTest, shouldSendSimpleOneFrame)
@@ -240,5 +251,60 @@ namespace
 			testSubject2.processIdle();
 			connection21.transfer(1);
 		}
+	}
+
+	TEST_F(CommChannelTest, shouldNotOverflowBuffer)
+	{
+		Sequence seq;
+		oneInitFrame(seq);
+		// drop frames less than buffer
+		for(int i=0; i<bufferSize - 1; ++i)
+		{
+			const int expected = i * 3 + 7;
+			EXPECT_CALL(receiver2, receive(HasData(expected))).InSequence(seq);
+			testSubject1.sendFrame(testSubject1.currentFrame()
+					.put(expected)
+			);
+			connection12.drop(1);
+		}
+		// one more data frame which should
+		testSubject1.sendFrame(testSubject1.currentFrame()
+				.put(someData1)
+		);
+		EXPECT_CALL(receiver2, receive(HasData(someData1))).InSequence(seq);
+		connection12.transfer(1);//data
+		testSubject2.processIdle();
+		connection21.transfer(1);//nak
+		connection12.transfer(bufferSize);//all naked
+	}
+
+	TEST_F(CommChannelTest, shouldDetectNakOverflow)
+	{
+		Sequence seq;
+		oneInitFrame(seq);
+		// drop frames enough to overflow buffer
+		for(int i=0; i<bufferSize; ++i)
+		{
+			const int data = i * 3 + 7;
+			testSubject1.sendFrame(testSubject1.currentFrame()
+					.put(data)
+			);
+			connection12.drop(1);
+		}
+		// one more data frame
+		testSubject1.sendFrame(testSubject1.currentFrame()
+				.put(someData1)
+		);
+		connection12.transfer(1);//data
+		testSubject2.processIdle();
+		connection21.transfer(1);//nak
+		connection12.transfer(1);//nak overflow
+		//following data is expected to restart the channel
+		EXPECT_CALL(receiver2, restart()).InSequence(seq);
+		EXPECT_CALL(receiver2, receive(HasData(someData2))).InSequence(seq);
+		testSubject1.sendFrame(testSubject1.currentFrame()
+				.put(someData2)
+		);
+		connection12.transfer(1);//data
 	}
 }

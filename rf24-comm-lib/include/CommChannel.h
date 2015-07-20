@@ -40,6 +40,7 @@ private:
 	static const Command cmd_data = 1;
 	static const Command cmd_ack = 2;
 	static const Command cmd_nak = 3;
+	static const Command cmd_nakOverflow = 4;
 	struct RingBuffer
 	{
 		RingBuffer()
@@ -106,6 +107,9 @@ public:
 			case cmd_nak:
 				inboundNak(accessor);
 				break;
+			case cmd_nakOverflow:
+				inboundNakOverflow(accessor);
+				break;
 			default:
 				break;
 		}
@@ -131,9 +135,30 @@ public:
 
 private:
 
+	void inboundNakOverflow(typename ByteBuffer<payloadSize>::Accessor &accessor)
+	{
+		const Sequence &badNak = accessor.template take<Sequence>();
+		if (badNak != inboundSequence)
+		{
+			return;// not our nak
+		}
+		joined = false;
+	}
+
 	void inboundNak(typename ByteBuffer<payloadSize>::Accessor &accessor)
 	{
 		const Sequence &nakFrom = accessor.template take<Sequence>();
+		const Sequence nakSize = outbound.sequence - nakFrom;
+		if(nakSize > outboundBufferSize)
+		{
+			ByteBuffer<payloadSize> payload;
+			typename ByteBuffer<payloadSize>::Accessor payloadAccessor(&payload);
+			payloadAccessor.put(cmd_nakOverflow);
+			payloadAccessor.put(nakFrom);
+			payloadAccessor.clear();
+			sender.write(payload.getBuf(), payloadSize);
+			return;
+		}
 		for(Sequence seq = nakFrom; seq != outbound.sequence; ++seq)
 		{
 			BufferAccessor data(outbound.bufferAt(seq));
