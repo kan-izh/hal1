@@ -267,7 +267,7 @@ namespace
 			);
 			connection12.drop(1);
 		}
-		// one more data frame which should
+		// one more data frame which goes through
 		testSubject1.sendFrame(testSubject1.currentFrame()
 				.put(someData1)
 		);

@@ -41,21 +41,25 @@ private:
 	static const Command cmd_ack = 2;
 	static const Command cmd_nak = 3;
 	static const Command cmd_nakOverflow = 4;
+	template<
+	        typename Elem,
+			uint16_t size
+	>
 	struct RingBuffer
 	{
 		RingBuffer()
-				: sequence(0)
-				, ackedSequence(0)
+				: head(0)
+				, tail(0)
 		{ }
 
-		Buffer *bufferAt(const Sequence seq)
+		Elem *bufferAt(const Sequence seq)
 		{
-			return buffer + seq % outboundBufferSize;
+			return buffer + seq % size;
 		}
 
-		Buffer buffer[outboundBufferSize];
-		Sequence sequence;
-		Sequence ackedSequence;
+		Elem buffer[size];
+		uint16_t head;
+		uint16_t tail;
 	};
 public:
 	CommChannel(TimeSource &timeSource, CommChannelOutput &output, Receiver &receiver)
@@ -70,7 +74,7 @@ public:
 
 	BufferAccessor currentFrame()
 	{
-		BufferAccessor accessor(outbound.bufferAt(outbound.sequence));
+		BufferAccessor accessor(outbound.bufferAt(outbound.head));
 		accessor.put(timeSource.currentMicros());
 		return accessor;
 	}
@@ -78,8 +82,8 @@ public:
 	void sendFrame(BufferAccessor &accessor)
 	{
 		accessor.clear();
-		write(accessor, outbound.sequence);
-		++outbound.sequence;
+		write(accessor, outbound.head);
+		++outbound.head;
 	}
 
 	uint8_t *getBuf()
@@ -148,7 +152,7 @@ private:
 	void inboundNak(typename ByteBuffer<payloadSize>::Accessor &accessor)
 	{
 		const Sequence &nakFrom = accessor.template take<Sequence>();
-		const Sequence nakSize = outbound.sequence - nakFrom;
+		const Sequence nakSize = outbound.head - nakFrom;
 		if(nakSize > outboundBufferSize)
 		{
 			ByteBuffer<payloadSize> payload;
@@ -159,7 +163,7 @@ private:
 			sender.write(payload.getBuf(), payloadSize);
 			return;
 		}
-		for(Sequence seq = nakFrom; seq != outbound.sequence; ++seq)
+		for(Sequence seq = nakFrom; seq != outbound.head; ++seq)
 		{
 			BufferAccessor data(outbound.bufferAt(seq));
 			write(data, seq);
@@ -169,7 +173,7 @@ private:
 	void inboundAck(typename ByteBuffer<payloadSize>::Accessor &accessor)
 	{
 		const Sequence &acked = accessor.template take<Sequence>();
-		outbound.ackedSequence = acked;
+		outbound.tail = acked;
 	}
 
 	void inboundData(typename ByteBuffer<payloadSize>::Accessor &accessor)
@@ -214,7 +218,7 @@ private:
 
 	void resendNotAckedFrames(uint32_t currentMicros)
 	{
-		for(Sequence seq = outbound.ackedSequence; outbound.sequence != seq; ++seq)
+		for(Sequence seq = outbound.tail; outbound.head != seq; ++seq)
 		{
 			BufferAccessor accessor(outbound.bufferAt(seq));
 			const uint32_t &frameTimestamp = accessor.template take<uint32_t>();
@@ -244,7 +248,7 @@ private:
 	ByteBuffer<payloadSize> inbound;
 	Sequence inboundSequence;
 	Sequence inboundAckedSequence;
-	RingBuffer outbound;
+	RingBuffer<Buffer, outboundBufferSize> outbound;
 	uint32_t timeoutMicros;
 };
 #endif //HAL1_COMMCHANNEL_H
