@@ -25,9 +25,11 @@ public:
 	typedef uint16_t Sequence;
 private:
 	typedef uint8_t Command;
-	static const size_t internalOutboundBufferSize = payloadSize - sizeof(Command) - sizeof(Sequence);
+	static const size_t outboundBufferElemSize = payloadSize - sizeof(Command) - sizeof(Sequence);
+	static const size_t inboundBufferElemSize = payloadSize + sizeof(uint8_t) - sizeof(Command) - sizeof(Sequence);
+	static const size_t inboundBufferSize = outboundBufferSize;
 public:
-	typedef ByteBuffer<internalOutboundBufferSize> Buffer;
+	typedef ByteBuffer<outboundBufferElemSize> Buffer;
 	typedef typename Buffer::Accessor BufferAccessor;
 	struct Receiver
 	{
@@ -58,15 +60,13 @@ private:
 		}
 
 		Elem buffer[size];
-		uint16_t head;
-		uint16_t tail;
+		Sequence head;
+		Sequence tail;
 	};
 public:
 	CommChannel(TimeSource &timeSource, CommChannelOutput &output, Receiver &receiver)
 			: timeSource(timeSource)
 			, sender(output)
-			, inboundSequence(0)
-			, inboundAckedSequence(0)
 			, receiver(receiver)
 			, timeoutMicros(defaultTimeoutMicros)
 			, joined(false)
@@ -133,7 +133,7 @@ public:
 	{
 		uint32_t currentMicros = timeSource.currentMicros();
 		resendNotAckedFrames(currentMicros);
-		sendAcks();
+		consumeInbound();
 		return 0;
 	}
 
@@ -142,7 +142,7 @@ private:
 	void inboundNakOverflow(typename ByteBuffer<payloadSize>::Accessor &accessor)
 	{
 		const Sequence &badNak = accessor.template take<Sequence>();
-		if (badNak != inboundSequence)
+		if (badNak != inboundBuffer.tail)
 		{
 			return;// not our nak
 		}
@@ -183,37 +183,92 @@ private:
 		{
 			receiver.restart();
 			joined = true;
-			inboundSequence = senderSequence;
+			inboundBuffer.tail = inboundBuffer.head  = senderSequence;
 		}
-		if (senderSequence == inboundSequence)
+		const Sequence posT = senderSequence - inboundBuffer.tail;
+		const Sequence posH = inboundBuffer.head - senderSequence;
+		if (posT < inboundBufferSize)
 		{
-			const uint32_t &timestamp = accessor.template take<uint32_t>();
-			receiver.receive(accessor);
-			++inboundSequence;
+			typename ByteBuffer<inboundBufferElemSize>::Accessor bufAccessor(inboundBuffer.bufferAt(senderSequence));
+			uint8_t &received = bufAccessor.template take<uint8_t>();
+			if (received == 0)
+			{
+				bufAccessor.template append<payloadSize>(accessor, accessor.getOffset());
+				Sequence size = inboundBuffer.head - inboundBuffer.tail;
+				if (posT >= size)
+				{// frame is outside, so stretch the buffer
+					inboundBuffer.head = senderSequence + Sequence(1);
+				}
+				else
+				{// frame falls in between tail and head
+				}
+				received = 1;
+			}
+			else
+			{// already received, ignoring dupe.
+			}
 		}
 		else
 		{
-			ByteBuffer<payloadSize> payload;
-			typename ByteBuffer<payloadSize>::Accessor payloadAccessor(&payload);
-			payloadAccessor.put(cmd_nak);
-			payloadAccessor.put(inboundSequence);
-			payloadAccessor.clear();
-			sender.write(payload.getBuf(), payloadSize);
+			if(posH < inboundBufferSize)
+			{//TODO: wtf?
+			}
+			else
+			{//TODO: overflow?
+				sendNak();
+			}
 		}
 	}
 
-	void sendAcks()
+	void sendNak()
 	{
-		if (inboundAckedSequence != inboundSequence)
+		ByteBuffer<payloadSize> payload;
+		typename ByteBuffer<payloadSize>::Accessor payloadAccessor(&payload);
+		payloadAccessor.put(cmd_nak);
+		payloadAccessor.put(inboundBuffer.tail);
+		payloadAccessor.clear();
+		sender.write(payload.getBuf(), payloadSize);
+	}
+
+	void consumeInbound()
+	{
+		bool consumed = false;
+		for(; inboundBuffer.tail != inboundBuffer.head; ++inboundBuffer.tail)
 		{
-			ByteBuffer<payloadSize> payload;
-			typename ByteBuffer<payloadSize>::Accessor payloadAccessor(&payload);
-			payloadAccessor.put(cmd_ack);
-			payloadAccessor.put(inboundSequence);
-			payloadAccessor.clear();
-			sender.write(payload.getBuf(), payloadSize);
-			inboundAckedSequence = inboundSequence;
+			typename ByteBuffer<inboundBufferElemSize>::Accessor bufAccessor(inboundBuffer.bufferAt(inboundBuffer.tail));
+			uint8_t &received = bufAccessor.template take<uint8_t>();
+			if(received == 0)
+			{
+				sendNak();
+				break;
+			}
+			received = 0;
+			consumed = true;
+			ByteBuffer<payloadSize> tempPayload;
+			typename ByteBuffer<payloadSize>::Accessor tempAccessor(&tempPayload);
+			tempAccessor.template take<Command>();
+			tempAccessor.template take<Sequence>();
+			tempAccessor.template append<inboundBufferElemSize>(bufAccessor, bufAccessor.getOffset());
+			tempAccessor.reset();
+			tempAccessor.template take<Command>();
+			tempAccessor.template take<Sequence>();
+			const uint32_t timestamp = tempAccessor.template take<uint32_t >();
+			receiver.receive(tempAccessor);
 		}
+		if(consumed)
+		{
+			sendAck(inboundBuffer.tail);
+		}
+	}
+
+	void sendAck(Sequence consumedSeq)
+	{
+		ByteBuffer<payloadSize> payload;
+		typename ByteBuffer<payloadSize>::Accessor payloadAccessor(&payload);
+		payloadAccessor.put(cmd_ack);
+		payloadAccessor.put(consumedSeq);
+		payloadAccessor.clear();
+		sender.write(payload.getBuf(), payloadSize);
 	}
 
 	void resendNotAckedFrames(uint32_t currentMicros)
@@ -236,7 +291,7 @@ private:
 		typename ByteBuffer<payloadSize>::Accessor payloadAccessor(&payload);
 		payloadAccessor.put(cmd_data);
 		payloadAccessor.put(seq);
-		payloadAccessor.template append<internalOutboundBufferSize>(accessor);
+		payloadAccessor.template append<outboundBufferElemSize>(accessor);
 		sender.write(payload.getBuf(), payloadSize);
 	}
 private:
@@ -246,9 +301,8 @@ private:
 	Receiver &receiver;
 
 	ByteBuffer<payloadSize> inbound;
-	Sequence inboundSequence;
-	Sequence inboundAckedSequence;
 	RingBuffer<Buffer, outboundBufferSize> outbound;
+	RingBuffer<ByteBuffer<inboundBufferElemSize>, inboundBufferSize> inboundBuffer;
 	uint32_t timeoutMicros;
 };
 #endif //HAL1_COMMCHANNEL_H

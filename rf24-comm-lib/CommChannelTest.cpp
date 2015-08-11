@@ -136,7 +136,9 @@ namespace
 		testSubject1.sendFrame(testSubject1.currentFrame()
 				.put(someData1)
 		);
-		connection12.transfer(1);
+		connection12.transfer(1);//send
+		testSubject2.processIdle();
+		connection21.transfer(1);//acked
 	}
 
 	TEST_F(CommChannelTest, shouldSendSimpleTwoFrames)
@@ -152,7 +154,9 @@ namespace
 		testSubject1.sendFrame(testSubject1.currentFrame()
 				.put(someData2)
 		);
-		connection12.transfer(2);
+		connection12.transfer(2);//send
+		testSubject2.processIdle();
+		connection21.transfer(1);//both acked
 	}
 
 	TEST_F(CommChannelTest, shouldRecoverOneFrame)
@@ -173,7 +177,9 @@ namespace
 
 		EXPECT_CALL(timeSource, currentMicros()).WillRepeatedly(Return(BASE_TIME + testSubject1.getTimeoutMicros()));
 		testSubject1.processIdle();
-		connection12.transfer(1);
+		connection12.transfer(1);//re-send
+		testSubject2.processIdle();
+		connection21.transfer(1);//acked
 	}
 
 	TEST_F(CommChannelTest, shouldAckOneFrame)
@@ -185,11 +191,11 @@ namespace
 				.put(someData1)
 		);
 		connection12.transfer(1);
-		testSubject2.processIdle();
-		connection21.transfer(1);
+		testSubject2.processIdle();//consume
+		connection21.transfer(1);//acked
 
 		EXPECT_CALL(timeSource, currentMicros()).WillRepeatedly(Return(BASE_TIME + testSubject1.getTimeoutMicros()));
-		testSubject1.processIdle();
+		testSubject1.processIdle();//not re-send
 	}
 
 	TEST_F(CommChannelTest, shouldRecoverLostFrame)
@@ -203,19 +209,22 @@ namespace
 		testSubject1.sendFrame(testSubject1.currentFrame()
 				.put(someData1)
 		);
-		connection12.transfer(1);
+		connection12.transfer(1);//send 1
 		testSubject1.sendFrame(testSubject1.currentFrame()
 				.put(someData2)
 		);
-		connection12.drop(1);
+		connection12.drop(1);//drop 2
 		testSubject1.sendFrame(testSubject1.currentFrame()
 				.put(someData3)
 		);
-		connection12.transfer(1);
+		connection12.transfer(1);//send 3
 
-		testSubject2.processIdle();
-		connection21.transfer(2);
-		connection12.transfer(2);
+		testSubject2.processIdle();//consume 1, nak 2
+		connection21.transfer(2);//ack 1, nak 2
+		connection12.transfer(1);//re-send 2
+		testSubject2.processIdle();//consume 2, and cached 3, ack 3
+		connection21.transfer(1);//send ack3
+		connection12.transfer(1);//re-send duplicate 3
 	}
 
 	TEST_F(CommChannelTest, shouldLateJoin)
@@ -276,6 +285,8 @@ namespace
 		testSubject2.processIdle();
 		connection21.transfer(1);//nak
 		connection12.transfer(bufferSize);//all naked
+		testSubject2.processIdle();
+		connection21.transfer(1);//all acked
 	}
 
 	TEST_F(CommChannelTest, shouldDetectNakOverflow)
@@ -306,5 +317,7 @@ namespace
 				.put(someData2)
 		);
 		connection12.transfer(1);//data
+		testSubject2.processIdle();
+		connection21.transfer(1);//all acked
 	}
 }

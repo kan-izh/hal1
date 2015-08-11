@@ -50,9 +50,9 @@ public:
 		}
 
 		template<typename T>
-		const T & take()
+		T & take()
 		{
-			const T &value = *reinterpret_cast<const T *>(getBuf() + offset);
+			T &value = *reinterpret_cast<T *>(buffer->getBuf() + offset);
 			offset += sizeof(T);
 			return value;
 		}
@@ -66,11 +66,13 @@ public:
 		}
 
 		template<uint8_t otherSize>
-		Accessor &append(typename ByteBuffer<otherSize>::Accessor &other)
+		Accessor &append(typename ByteBuffer<otherSize>::Accessor &other, uint8_t otherOffset = 0)
 		{
-			uint8_t *cur = buffer->getBuf() + offset;
-			memcpy(cur, other.getBuf(), sizeof(uint8_t) * otherSize);
-			offset += otherSize;
+			const uint8_t appendSize = otherSize - otherOffset;
+			uint8_t *dest = buffer->getBuf() + offset;
+			const uint8_t *src = other.getBuf() + otherOffset;
+			memcpy(dest, src, sizeof(uint8_t) * appendSize);
+			offset += appendSize;
 			return *this;
 		}
 		
