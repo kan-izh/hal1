@@ -311,13 +311,6 @@ namespace
 		connection21.transfer(1);//nak
 		connection12.transfer(1);//nak overflow
 		//following data is expected to restart the channel
-		EXPECT_CALL(receiver2, restart()).InSequence(seq);
-		EXPECT_CALL(receiver2, receive(HasData(someData2))).InSequence(seq);
-		testSubject1.sendFrame(testSubject1.currentFrame()
-				.put(someData2)
-		);
-		connection12.transfer(1);//data
-		testSubject2.processIdle();
-		connection21.transfer(1);//all acked
+		oneInitFrame(seq);
 	}
 }
