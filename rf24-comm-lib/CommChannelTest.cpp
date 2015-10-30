@@ -1,5 +1,6 @@
 #include <vector>
 #include <deque>
+#include <backward/auto_ptr.h>
 #include "gtest/gtest.h"
 #include "gmock/gmock.h"
 #include "CommChannel.h"
@@ -99,32 +100,38 @@ namespace
 	struct CommChannelTest : public ::testing::Test
 	{
 		MockTimeSource timeSource;
-		TestSubject testSubject1;
-		TestSubject testSubject2;
+		std::auto_ptr<TestSubject> testSubject1;
+		std::auto_ptr<TestSubject> testSubject2;
 		MockCommChannelConnection connection12;
 		MockCommChannelConnection connection21;
 		MockReceiver receiver1;
 		MockReceiver receiver2;
 
 		CommChannelTest()
-				: testSubject1(timeSource, connection12, receiver1)
-				, testSubject2(timeSource, connection21, receiver2)
+				: testSubject1(new TestSubject(timeSource, connection12, receiver1))
+				, testSubject2(new TestSubject(timeSource, connection21, receiver2))
 		{
 			EXPECT_CALL(timeSource, currentMicros()).WillRepeatedly(Return(BASE_TIME));
-			connection12.target = &testSubject2;
-			connection21.target = &testSubject1;
+			connection12.target = testSubject2.get();
+			connection21.target = testSubject1.get();
 		}
 
 		void oneInitFrame(const Sequence &seq)
 		{
 			EXPECT_CALL(receiver2, restart()).InSequence(seq);
 			EXPECT_CALL(receiver2, receive(HasData(someData1))).InSequence(seq);
-			testSubject1.sendFrame(testSubject1.currentFrame()
+			testSubject1->sendFrame(testSubject1->currentFrame()
 					.put(someData1)
 			);
 			connection12.transfer(1);
-			testSubject2.processIdle();
+			testSubject2->processIdle();
 			connection21.transfer(1);
+		}
+
+		void restartTestSubject1()
+		{
+			testSubject1.reset(new TestSubject(timeSource, connection12, receiver1));
+			connection21.target = testSubject1.get();
 		}
 	};
 
@@ -133,11 +140,11 @@ namespace
 		EXPECT_CALL(receiver2, restart());
 		EXPECT_CALL(receiver2, receive(HasData(someData1)));
 
-		testSubject1.sendFrame(testSubject1.currentFrame()
+		testSubject1->sendFrame(testSubject1->currentFrame()
 				.put(someData1)
 		);
 		connection12.transfer(1);//send
-		testSubject2.processIdle();
+		testSubject2->processIdle();
 		connection21.transfer(1);//acked
 	}
 
@@ -148,14 +155,14 @@ namespace
 		EXPECT_CALL(receiver2, receive(HasData(someData1))).InSequence(receiverSeq);
 		EXPECT_CALL(receiver2, receive(HasData(someData2))).InSequence(receiverSeq);
 
-		testSubject1.sendFrame(testSubject1.currentFrame()
+		testSubject1->sendFrame(testSubject1->currentFrame()
 				.put(someData1)
 		);
-		testSubject1.sendFrame(testSubject1.currentFrame()
+		testSubject1->sendFrame(testSubject1->currentFrame()
 				.put(someData2)
 		);
 		connection12.transfer(2);//send
-		testSubject2.processIdle();
+		testSubject2->processIdle();
 		connection21.transfer(1);//both acked
 	}
 
@@ -164,21 +171,21 @@ namespace
 		EXPECT_CALL(receiver2, restart());
 		EXPECT_CALL(receiver2, receive(HasData(someData1)));
 
-		testSubject1.sendFrame(testSubject1.currentFrame()
+		testSubject1->sendFrame(testSubject1->currentFrame()
 				.put(someData1)
 		);
 		connection12.drop(1);
-		testSubject1.processIdle();
+		testSubject1->processIdle();
 		connection12.assertNoFrames();
 
-		EXPECT_CALL(timeSource, currentMicros()).WillRepeatedly(Return(BASE_TIME + testSubject1.getTimeoutMicros() - 1));
-		testSubject1.processIdle();
+		EXPECT_CALL(timeSource, currentMicros()).WillRepeatedly(Return(BASE_TIME + testSubject1->getTimeoutMicros() - 1));
+		testSubject1->processIdle();
 		connection12.assertNoFrames();
 
-		EXPECT_CALL(timeSource, currentMicros()).WillRepeatedly(Return(BASE_TIME + testSubject1.getTimeoutMicros()));
-		testSubject1.processIdle();
+		EXPECT_CALL(timeSource, currentMicros()).WillRepeatedly(Return(BASE_TIME + testSubject1->getTimeoutMicros()));
+		testSubject1->processIdle();
 		connection12.transfer(1);//re-send
-		testSubject2.processIdle();
+		testSubject2->processIdle();
 		connection21.transfer(1);//acked
 	}
 
@@ -187,15 +194,15 @@ namespace
 		EXPECT_CALL(receiver2, restart());
 		EXPECT_CALL(receiver2, receive(HasData(someData1)));
 
-		testSubject1.sendFrame(testSubject1.currentFrame()
+		testSubject1->sendFrame(testSubject1->currentFrame()
 				.put(someData1)
 		);
 		connection12.transfer(1);
-		testSubject2.processIdle();//consume
+		testSubject2->processIdle();//consume
 		connection21.transfer(1);//acked
 
-		EXPECT_CALL(timeSource, currentMicros()).WillRepeatedly(Return(BASE_TIME + testSubject1.getTimeoutMicros()));
-		testSubject1.processIdle();//not re-send
+		EXPECT_CALL(timeSource, currentMicros()).WillRepeatedly(Return(BASE_TIME + testSubject1->getTimeoutMicros()));
+		testSubject1->processIdle();//not re-send
 	}
 
 	TEST_F(CommChannelTest, shouldRecoverLostFrame)
@@ -206,23 +213,23 @@ namespace
 		EXPECT_CALL(receiver2, receive(HasData(someData2))).InSequence(receiverSeq);
 		EXPECT_CALL(receiver2, receive(HasData(someData3))).InSequence(receiverSeq);
 
-		testSubject1.sendFrame(testSubject1.currentFrame()
+		testSubject1->sendFrame(testSubject1->currentFrame()
 				.put(someData1)
 		);
 		connection12.transfer(1);//send 1
-		testSubject1.sendFrame(testSubject1.currentFrame()
+		testSubject1->sendFrame(testSubject1->currentFrame()
 				.put(someData2)
 		);
 		connection12.drop(1);//drop 2
-		testSubject1.sendFrame(testSubject1.currentFrame()
+		testSubject1->sendFrame(testSubject1->currentFrame()
 				.put(someData3)
 		);
 		connection12.transfer(1);//send 3
 
-		testSubject2.processIdle();//consume 1, nak 2
+		testSubject2->processIdle();//consume 1, nak 2
 		connection21.transfer(2);//ack 1, nak 2
 		connection12.transfer(1);//re-send 2
-		testSubject2.processIdle();//consume 2, and cached 3, ack 3
+		testSubject2->processIdle();//consume 2, and cached 3, ack 3
 		connection21.transfer(1);//send ack3
 		connection12.transfer(1);//re-send duplicate 3
 	}
@@ -233,15 +240,15 @@ namespace
 		EXPECT_CALL(receiver2, restart()).InSequence(receiverSeq);
 		EXPECT_CALL(receiver2, receive(HasData(someData2))).InSequence(receiverSeq);
 
-		testSubject1.sendFrame(testSubject1.currentFrame()
+		testSubject1->sendFrame(testSubject1->currentFrame()
 				.put(someData1)
 		);
 		connection12.drop(1);
-		testSubject1.sendFrame(testSubject1.currentFrame()
+		testSubject1->sendFrame(testSubject1->currentFrame()
 				.put(someData2)
 		);
 		connection12.transfer(1);
-		testSubject2.processIdle();
+		testSubject2->processIdle();
 		connection21.transfer(1);
 	}
 
@@ -253,11 +260,11 @@ namespace
 		{
 			const int expected = i * 3 + 7;
 			EXPECT_CALL(receiver2, receive(HasData(expected))).InSequence(receiverSeq);
-			testSubject1.sendFrame(testSubject1.currentFrame()
+			testSubject1->sendFrame(testSubject1->currentFrame()
 					.put(expected)
 			);
 			connection12.transfer(1);
-			testSubject2.processIdle();
+			testSubject2->processIdle();
 			connection21.transfer(1);
 		}
 	}
@@ -271,21 +278,21 @@ namespace
 		{
 			const int expected = i * 3 + 7;
 			EXPECT_CALL(receiver2, receive(HasData(expected))).InSequence(seq);
-			testSubject1.sendFrame(testSubject1.currentFrame()
+			testSubject1->sendFrame(testSubject1->currentFrame()
 					.put(expected)
 			);
 			connection12.drop(1);
 		}
 		// one more data frame which goes through
-		testSubject1.sendFrame(testSubject1.currentFrame()
+		testSubject1->sendFrame(testSubject1->currentFrame()
 				.put(someData1)
 		);
 		EXPECT_CALL(receiver2, receive(HasData(someData1))).InSequence(seq);
 		connection12.transfer(1);//data
-		testSubject2.processIdle();
+		testSubject2->processIdle();
 		connection21.transfer(1);//nak
 		connection12.transfer(bufferSize);//all naked
-		testSubject2.processIdle();
+		testSubject2->processIdle();
 		connection21.transfer(1);//all acked
 	}
 
@@ -297,20 +304,31 @@ namespace
 		for(int i=0; i<bufferSize; ++i)
 		{
 			const int data = i * 3 + 7;
-			testSubject1.sendFrame(testSubject1.currentFrame()
+			testSubject1->sendFrame(testSubject1->currentFrame()
 					.put(data)
 			);
 			connection12.drop(1);
 		}
 		// one more data frame
-		testSubject1.sendFrame(testSubject1.currentFrame()
+		testSubject1->sendFrame(testSubject1->currentFrame()
 				.put(someData1)
 		);
 		connection12.transfer(1);//data
-		testSubject2.processIdle();
+		testSubject2->processIdle();
 		connection21.transfer(1);//nak
 		connection12.transfer(1);//nak overflow
 		//following data is expected to restart the channel
+		oneInitFrame(seq);
+	}
+
+	TEST_F(CommChannelTest, DISABLED_shouldHandleChannelRestart)
+	{
+		Sequence seq;
+		oneInitFrame(seq);
+		restartTestSubject1();
+		testSubject1->sendFrame(testSubject1->currentFrame()
+				.put(someData2)
+		);
 		oneInitFrame(seq);
 	}
 }

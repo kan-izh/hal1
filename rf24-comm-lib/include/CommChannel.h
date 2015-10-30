@@ -205,16 +205,16 @@ private:
 				received = 1;
 			}
 			else
-			{// already received, ignoring dupe.
+			{// already received, but not consumed yet as something is missing, ignoring dupe.
 			}
 		}
 		else
 		{
 			if(posH < inboundBufferSize)
-			{//TODO: wtf?
+			{//received consumed frame, ignoring dupe.
 			}
 			else
-			{//TODO: overflow?
+			{// overflow, sending nak
 				sendNak();
 			}
 		}
