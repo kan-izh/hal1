@@ -44,6 +44,8 @@ private:
 	static const Command cmd_nak = 3;
 	static const Command cmd_nakOverflow = 4;
 	static const Command cmd_firstData = 5;
+	static const Command cmd_firstAck = 6;
+	static const uint8_t received_firstData = 0xFF;
 	template<
 	        typename Elem,
 			uint16_t size
@@ -104,15 +106,17 @@ public:
 		const Command &command = accessor.template take<Command>();
 		switch (command)
 		{
+			case cmd_firstAck:
+				inboundAck(accessor, true);
+				break;
 			case cmd_ack:
-				inboundAck(accessor);
+				inboundAck(accessor, false);
 				break;
 			case cmd_firstData:
-				joined = false;
-				inboundData(accessor);
+				inboundData(accessor, true);
 				break;
 			case cmd_data:
-				inboundData(accessor);
+				inboundData(accessor, false);
 				break;
 			case cmd_nak:
 				inboundNak(accessor);
@@ -176,17 +180,20 @@ private:
 		}
 	}
 
-	void inboundAck(typename ByteBuffer<payloadSize>::Accessor &accessor)
+	void inboundAck(typename ByteBuffer<payloadSize>::Accessor &accessor, const bool firstAck)
 	{
 		const Sequence &acked = accessor.template take<Sequence>();
 		outbound.tail = acked;
-		initialised = true;
+		if(firstAck)
+		{
+			initialised = true;
+		}
 	}
 
-	void inboundData(typename ByteBuffer<payloadSize>::Accessor &accessor)
+	void inboundData(typename ByteBuffer<payloadSize>::Accessor &accessor, const bool firstData)
 	{
 		const Sequence &senderSequence = accessor.template take<Sequence>();
-		if (!joined)
+		if (!joined || firstData)
 		{
 			receiver.restart();
 			joined = true;
@@ -198,7 +205,7 @@ private:
 		{
 			typename ByteBuffer<inboundBufferElemSize>::Accessor bufAccessor(inboundBuffer.bufferAt(senderSequence));
 			uint8_t &received = bufAccessor.template take<uint8_t>();
-			if (received == 0)
+			if (received == 0)//TODO: What happens old frame received, but not consumed yet?
 			{
 				bufAccessor.template append<payloadSize>(accessor, accessor.getOffset());
 				Sequence size = inboundBuffer.head - inboundBuffer.tail;
@@ -209,7 +216,15 @@ private:
 				else
 				{// frame falls in between tail and head
 				}
-				received = 1;
+
+				if (firstData)
+				{
+					received = received_firstData;
+				}
+				else
+				{
+					received = 1;
+				}
 			}
 			else
 			{// already received, but not consumed yet as something is missing, ignoring dupe.
@@ -239,7 +254,7 @@ private:
 
 	void consumeInbound()
 	{
-		bool consumed = false;
+		bool consumed = false, firstData = false;
 		for(; inboundBuffer.tail != inboundBuffer.head; ++inboundBuffer.tail)
 		{
 			typename ByteBuffer<inboundBufferElemSize>::Accessor bufAccessor(inboundBuffer.bufferAt(inboundBuffer.tail));
@@ -248,6 +263,10 @@ private:
 			{
 				sendNak();
 				break;
+			}
+			else if(received == received_firstData)
+			{
+				firstData = true;
 			}
 			received = 0;
 			consumed = true;
@@ -264,15 +283,15 @@ private:
 		}
 		if(consumed)
 		{
-			sendAck(inboundBuffer.tail);
+			sendAck(inboundBuffer.tail, firstData);
 		}
 	}
 
-	void sendAck(Sequence consumedSeq)
+	void sendAck(Sequence consumedSeq, const bool firstData)
 	{
 		ByteBuffer<payloadSize> payload;
 		typename ByteBuffer<payloadSize>::Accessor payloadAccessor(&payload);
-		payloadAccessor.put(cmd_ack);
+		payloadAccessor.put(firstData ? cmd_firstAck : cmd_ack);
 		payloadAccessor.put(consumedSeq);
 		payloadAccessor.clear();
 		sender.write(payload.getBuf(), payloadSize);

@@ -91,7 +91,7 @@ namespace
 	MATCHER_P(HasData, expected, "")
 	{
 		expected_type actual = arg.template take<expected_type>();
-		*result_listener << "actual = " << actual << ", expected = " << expected;
+		*result_listener << std::hex << "actual = " << actual << ", expected = " << expected;
 		return actual == expected;
 	}
 
@@ -332,5 +332,20 @@ namespace
 		oneInitFrame(seq);
 		restartTestSubject1();
 		oneInitFrame(seq);
+	}
+
+	TEST_F(CommChannelTest, shouldSkipWrongAck)
+	{
+		Sequence seq;
+		oneInitFrame(seq);
+		testSubject1->sendFrame(testSubject1->currentFrame()
+				.put(someData2)
+		);
+		EXPECT_CALL(receiver2, receive(HasData(someData2))).InSequence(seq);
+		connection12.transfer(1);
+		testSubject2->processIdle();//sending an ack
+		restartTestSubject1();
+		connection21.transfer(1);//receiving the ack, but too late, it's re-spawned sender now
+		oneInitFrame(seq);//and should work as usual
 	}
 }
