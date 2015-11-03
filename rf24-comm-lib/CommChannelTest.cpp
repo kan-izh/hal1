@@ -158,12 +158,15 @@ namespace
 		testSubject1->sendFrame(testSubject1->currentFrame()
 				.put(someData1)
 		);
+		connection12.transfer(1);//send
+		testSubject2->processIdle();
+		connection21.transfer(1);//acked
 		testSubject1->sendFrame(testSubject1->currentFrame()
 				.put(someData2)
 		);
-		connection12.transfer(2);//send
+		connection12.transfer(1);//send
 		testSubject2->processIdle();
-		connection21.transfer(1);//both acked
+		connection21.transfer(1);//acked
 	}
 
 	TEST_F(CommChannelTest, shouldRecoverOneFrame)
@@ -220,14 +223,16 @@ namespace
 		testSubject1->sendFrame(testSubject1->currentFrame()
 				.put(someData2)
 		);
+		testSubject2->processIdle();//consume 1
+		connection21.transfer(1);//ack 1
 		connection12.drop(1);//drop 2
 		testSubject1->sendFrame(testSubject1->currentFrame()
 				.put(someData3)
 		);
 		connection12.transfer(1);//send 3
 
-		testSubject2->processIdle();//consume 1, nak 2
-		connection21.transfer(2);//ack 1, nak 2
+		testSubject2->processIdle();//nak 2
+		connection21.transfer(1);//nak 2
 		connection12.transfer(1);//re-send 2
 		testSubject2->processIdle();//consume 2, and cached 3, ack 3
 		connection21.transfer(1);//send ack3
@@ -321,14 +326,11 @@ namespace
 		oneInitFrame(seq);
 	}
 
-	TEST_F(CommChannelTest, DISABLED_shouldHandleChannelRestart)
+	TEST_F(CommChannelTest, shouldHandleChannelRestart)
 	{
 		Sequence seq;
 		oneInitFrame(seq);
 		restartTestSubject1();
-		testSubject1->sendFrame(testSubject1->currentFrame()
-				.put(someData2)
-		);
 		oneInitFrame(seq);
 	}
 }

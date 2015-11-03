@@ -43,6 +43,7 @@ private:
 	static const Command cmd_ack = 2;
 	static const Command cmd_nak = 3;
 	static const Command cmd_nakOverflow = 4;
+	static const Command cmd_firstData = 5;
 	template<
 	        typename Elem,
 			uint16_t size
@@ -70,6 +71,7 @@ public:
 			, receiver(receiver)
 			, timeoutMicros(defaultTimeoutMicros)
 			, joined(false)
+			, initialised(false)
 	{ }
 
 	BufferAccessor currentFrame()
@@ -104,6 +106,10 @@ public:
 		{
 			case cmd_ack:
 				inboundAck(accessor);
+				break;
+			case cmd_firstData:
+				joined = false;
+				inboundData(accessor);
 				break;
 			case cmd_data:
 				inboundData(accessor);
@@ -174,6 +180,7 @@ private:
 	{
 		const Sequence &acked = accessor.template take<Sequence>();
 		outbound.tail = acked;
+		initialised = true;
 	}
 
 	void inboundData(typename ByteBuffer<payloadSize>::Accessor &accessor)
@@ -289,13 +296,13 @@ private:
 	{
 		ByteBuffer<payloadSize> payload;
 		typename ByteBuffer<payloadSize>::Accessor payloadAccessor(&payload);
-		payloadAccessor.put(cmd_data);
+		payloadAccessor.put(initialised ? cmd_data : cmd_firstData);
 		payloadAccessor.put(seq);
 		payloadAccessor.template append<outboundBufferElemSize>(accessor);
 		sender.write(payload.getBuf(), payloadSize);
 	}
 private:
-	bool joined;
+	bool joined, initialised;
 	TimeSource &timeSource;
 	CommChannelOutput &sender;
 	Receiver &receiver;
