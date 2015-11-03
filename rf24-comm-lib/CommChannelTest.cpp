@@ -137,15 +137,8 @@ namespace
 
 	TEST_F(CommChannelTest, shouldSendSimpleOneFrame)
 	{
-		EXPECT_CALL(receiver2, restart());
-		EXPECT_CALL(receiver2, receive(HasData(someData1)));
-
-		testSubject1->sendFrame(testSubject1->currentFrame()
-				.put(someData1)
-		);
-		connection12.transfer(1);//send
-		testSubject2->processIdle();
-		connection21.transfer(1);//acked
+		Sequence seq;
+		oneInitFrame(seq);
 	}
 
 	TEST_F(CommChannelTest, shouldSendSimpleTwoFrames)
