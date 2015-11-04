@@ -3,15 +3,35 @@
 
 #include <RF24.h>
 #include "../conf/rf-comm.h"
-#include "RingBufferSubscriber.h"
-#include "RingBufferPublisher.h"
 #include "../conf/messages.h"
+#include "CommChannel.h"
 
-typedef RingBufferSubscriber<RF_PAYLOAD_SIZE> Subscriber;
-typedef RingBufferPublisher<1024, RF_PAYLOAD_SIZE> RfPublisher;
+typedef CommChannel<1024, RF_PAYLOAD_SIZE> RfCommChannel;
+
+struct RpiTimeSource : TimeSource
+{
+	virtual uint32_t currentMicros()
+	{
+		return millis() * 1000;
+	}
+};
+
+RpiTimeSource timeSource;
+
+void dump(const char *what, uint8_t const *buf, uint8_t len)
+{
+	return;
+	printf("%u %s", timeSource.currentMicros(), what);
+	for (int i = 0; i < len; ++i)
+	{
+		printf("%02x", int(buf[i]));
+	}
+	printf("\n");
+
+}
 
 
-struct RF24Output : RingBufferOutput
+struct RF24Output : CommChannelOutput
 {
 
 	RF24 &radio;
@@ -22,13 +42,10 @@ struct RF24Output : RingBufferOutput
 
 	virtual void write(uint8_t const *buf, uint8_t len)
 	{
+		dump("Send: ", buf, len);
 		radio.stopListening();
-		bool written = radio.writeBlocking(buf, len, 2000);
-		bool txen = radio.txStandBy();
+		radio.write(buf, len, true);
 		radio.startListening();
-		printf(written ? "written ok. " : "not written. ");
-		printf(txen ? "txen ok.\n" : "not txen.\n");
-		fflush(stdout);
 	}
 };
 
@@ -39,15 +56,10 @@ uint32_t convertTemperature(const uint16_t value)
 
 void display(uint32_t temperatureInMilliC);
 
-struct SubscriberHandler : Subscriber::Handler
-{
-	RfPublisher &publisher;
-	RF24 &rf24;
-	SubscriberHandler(RfPublisher &publisher, RF24 &rf24)
-			: publisher(publisher)
-			, rf24(rf24)
-	{ }
+int currentStrike = 0, bestStrike = 0;
 
+struct RfReceiver : RfCommChannel::Receiver
+{
 	void messageAnalogRead(const uint8_t &pin, const uint16_t &value)
 	{
 		switch (pin)
@@ -63,8 +75,10 @@ struct SubscriberHandler : Subscriber::Handler
 		}
 	}
 
-	virtual void handle(uint32_t messageId, uint8_t contentId, Subscriber::PayloadAccessor &input)
+	virtual void receive(Accessor &input)
 	{
+		currentStrike++;
+		const uint8_t &contentId = input.template take<uint8_t>();
 		switch (contentId)
 		{
 			case MESSAGE_ANALOG_READ:
@@ -79,38 +93,25 @@ struct SubscriberHandler : Subscriber::Handler
 		}
 	}
 
-	virtual void handleNak(uint32_t hwm, uint32_t sequence)
+	virtual void restart()
 	{
-		while(rf24.available())
-		{
-			uint8_t b;
-			rf24.read(&b, sizeof(b));
-		}
-		printf("\n[%d] sending ack for %d, got %d\n", millis(), hwm, sequence);
+		bestStrike = std::max(bestStrike, currentStrike);
+		currentStrike = 0;
+		printf("restart\n");
 		fflush(stdout);
-		publisher.sendNak(hwm);
-	}
-
-	virtual void recover(uint32_t hwm)
-	{
-		printf("\n[%d] Recovered from %d\n", millis(), hwm);
-		fflush(stdout);
-	}
-
-	virtual void nak(const uint32_t &subscriberHighWatermark)
-	{
 	}
 };
 
 bool work = true;
 
-void loop(RF24 radio, Subscriber &subscriber);
+void loop(RF24 radio, RfCommChannel &subscriber);
 
 int main(int argc, char *argv[])
 {
 	RF24 radio(RPI_V2_GPIO_P1_22, RPI_V2_GPIO_P1_24, BCM2835_SPI_SPEED_8MHZ);
 	radio.begin();
 	radio.setPayloadSize(RF_PAYLOAD_SIZE);
+	radio.setAutoAck(false);
 	radio.setChannel(RF_COMM_CHANNEL_ARDUINO_TO_RPI);
 	radio.setPALevel(RF24_PA_MAX);
 	radio.setAddressWidth(RF_COMM_ADDRESS_WIDTH);
@@ -121,13 +122,12 @@ int main(int argc, char *argv[])
 	fflush(stdout);
 
 	RF24Output rf24Output(radio);
-	RfPublisher publisher(&rf24Output);
-	SubscriberHandler handler(publisher, radio);
-	Subscriber subscriber(&handler);
+	RfReceiver receiver;
+	RfCommChannel channel(timeSource, rf24Output, receiver);
 
 	while(work)
 	{
-		loop(radio, subscriber);
+		loop(radio, channel);
 	}
 	return 0;
 }
@@ -154,21 +154,23 @@ void display(uint32_t temperatureInMilliC)
 		}
 	}
 	avg /= cnt;
-	printf("average(%d): %6.2f, current: %6.2f\r", cnt, avg / 1000., temperatureInMilliC / 1000.);
+	printf("[%d/%d] average(%d): %6.2f, current: %6.2f\r", currentStrike, bestStrike, cnt, avg / 1000., temperatureInMilliC / 1000.);
 	fflush(stdout);
 }
 
 
-void loop(RF24 radio, Subscriber &subscriber)
+void loop(RF24 radio, RfCommChannel &channel)
 {
 	while (radio.available())
 	{
 		pulse = 0;
-		radio.read(subscriber.getBuf(), subscriber.getBufSize());
-		subscriber.process();
+		radio.read(channel.getBuf(), channel.getBufSize());
+		dump("Recv: ", channel.getBuf(), channel.getBufSize());
+		channel.processBuf();
 	}
-	delay(100);
-	if (++pulse % 20 == 0)
+	channel.processIdle();
+	delay(10);
+	if (++pulse % 200 == 0)
 	{
 		printf("\npulse %d\n", pulse);
 		fflush(stdout);

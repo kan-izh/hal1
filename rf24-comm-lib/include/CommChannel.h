@@ -34,7 +34,8 @@ public:
 	typedef typename Buffer::Accessor BufferAccessor;
 	struct Receiver
 	{
-		virtual void receive(typename ByteBuffer<payloadSize>::Accessor &data) = 0;
+		typedef typename ByteBuffer<payloadSize>::Accessor Accessor;
+		virtual void receive(Accessor &data) = 0;
 		virtual void restart() = 0;
 	};
 

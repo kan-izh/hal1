@@ -1,48 +1,52 @@
 #include <RF24.h>
 #include "Arduino.h"
 #include "HardwareSerial.h"
-#include "Rf24Stream.h"
 #include "rf-settings.h"
 #include "../../conf/messages.h"
-#include "RingBufferSubscriber.h"
-#include "RingBufferPublisher.h"
+#include "CommChannel.h"
 
 //after build -- to flash
 //avrdude -V -c arduino -p m328p -b 115200 -P /dev/ttyACM3 -U flash:w:.build/firmware/firmware.hex
-typedef RingBufferSubscriber<RF_PAYLOAD_SIZE> RfSubscriber;
-typedef RingBufferPublisher<128, RF_PAYLOAD_SIZE> RfPublisher;
+static const int bufferSize = 64;
+typedef CommChannel<bufferSize, RF_PAYLOAD_SIZE> ArduinoCommChannel;
 
-struct SubscriberHandler : RfSubscriber::Handler
+struct ArduinoTimeSource : TimeSource
 {
-	RfPublisher &publisher;
-
-	SubscriberHandler(RfPublisher &publisher, RF24 &rf24)
-			:publisher(publisher)
-	{ }
-
-	virtual void handle(uint32_t messageId, uint8_t contentId, RfSubscriber::PayloadAccessor &input)
+	virtual uint32_t currentMicros()
 	{
-	}
-
-	virtual void handleNak(uint32_t hwm, uint32_t sequence)
-	{
-	}
-
-	virtual void recover(uint32_t hmw)
-	{
-	}
-
-	virtual void nak(const uint32_t &subscriberHighWatermark)
-	{
-		const uint32_t hwm = publisher.getHighWatermark();
-		Serial.print(hwm);
-		Serial.print(", naked=");
-		Serial.println(uint32_t(subscriberHighWatermark));
-		publisher.nak(subscriberHighWatermark);
+		return static_cast<uint32_t>(micros());
 	}
 };
 
-struct RF24Output : RingBufferOutput
+ArduinoTimeSource timeSource;
+
+void dump(const char *what, uint8_t const *buf, uint8_t len)
+{
+	Serial.print(timeSource.currentMicros());
+	Serial.print(" ");
+	Serial.print(what);
+	for (int i = 0; i < len; ++i)
+	{
+		Serial.print((buf[i] & 0xf0) / 0x0f, 16);
+		Serial.print(buf[i] & 0x0f, 16);
+	}
+	Serial.println();
+
+}
+
+struct ArduinoReceiver : ArduinoCommChannel::Receiver
+{
+	virtual void receive(Accessor &accessor)
+	{
+	}
+
+	virtual void restart()
+	{
+		Serial.println("restart channel");
+	}
+};
+
+struct RF24Output : CommChannelOutput
 {
 
     RF24 &radio;
@@ -52,21 +56,22 @@ struct RF24Output : RingBufferOutput
     }
 
     virtual void write(uint8_t const *buf, uint8_t len)
-    {
-        radio.stopListening();
-        radio.writeBlocking(buf, len, 2000);
-        radio.txStandBy();
-        radio.startListening();
-    }
+	{
+//		dump("Send: ", buf, len);
+		radio.stopListening();
+		radio.write(buf, len, true);
+		radio.startListening();
+		delayMicroseconds(250);
+	}
 };
 
-const unsigned long heartbeatIntervalMs = 50;
+const unsigned long heartbeatIntervalMs = 25;
 unsigned long timeMs = 0;
 
-void schedule(RF24 &radio, RfPublisher &publisher);
-void listenRf(RF24 &radio, RfSubscriber &subscriber);
+void schedule(RF24 &radio, ArduinoCommChannel &publisher);
+void listenRf(RF24 &radio, ArduinoCommChannel &subscriber);
 
-void sendAnalogRead(RfPublisher &publisher, const uint8_t i);
+void sendAnalogRead(ArduinoCommChannel &channel, const uint8_t i);
 
 bool work = true;
 
@@ -78,7 +83,7 @@ int main()
 	RF24 radio(RF_cepin, RF_cspin);
 	radio.begin();
 	radio.setPayloadSize(RF_PAYLOAD_SIZE);
-	radio.setAutoAck(true);
+	radio.setAutoAck(false);
     radio.setChannel(RF_channel);
 	radio.setPALevel(RF24_PA_MAX);
     radio.setAddressWidth(RF_COMM_ADDRESS_WIDTH);
@@ -87,44 +92,44 @@ int main()
 	radio.startListening();
 
     RF24Output rf24Output(radio);
-    RfPublisher ringBufferPublisher(&rf24Output);
-	SubscriberHandler subscriberHandler(ringBufferPublisher, radio);
-	RfSubscriber subscriber(&subscriberHandler);
+	ArduinoReceiver receiver;
+	ArduinoCommChannel channel(timeSource, rf24Output, receiver);
     Serial.println("initialised");
     Serial.flush();
     while(work)
 	{
-		listenRf(radio, subscriber);
-		schedule(radio, ringBufferPublisher);
+		listenRf(radio, channel);
+		channel.processIdle();
+		schedule(radio, channel);
     }
 	return 0;
 }
 
-void listenRf(RF24 &radio, RfSubscriber &subscriber)
+void listenRf(RF24 &radio, ArduinoCommChannel &channel)
 {
 	while(radio.available())
 	{
-		radio.read(subscriber.getBuf(), subscriber.getBufSize());
-		subscriber.process();
+		radio.read(channel.getBuf(), channel.getBufSize());
+//		dump("Recv: ", channel.getBuf(), channel.getBufSize());
+		channel.processBuf();
 	}
 }
 
-void schedule(RF24 &radio, RfPublisher &publisher)
+void schedule(RF24 &radio, ArduinoCommChannel &channel)
 {
     unsigned long currentTime = millis();
     if(currentTime - timeMs > heartbeatIntervalMs)
     {
         timeMs = currentTime;
-		sendAnalogRead(publisher, TEMPERATURE_SENSOR);
+		sendAnalogRead(channel, TEMPERATURE_SENSOR);
     }
 }
 
-void sendAnalogRead(RfPublisher &publisher, const uint8_t pin)
+void sendAnalogRead(ArduinoCommChannel &channel, const uint8_t pin)
 {
 	const uint16_t value = (uint16_t) analogRead(pin);
-	publisher.getSendBuffer()
+	channel.sendFrame(channel.currentFrame()
 				.put(MESSAGE_ANALOG_READ)
 				.put(pin)
-				.put(value);
-	publisher.send();
+				.put(value));
 }
