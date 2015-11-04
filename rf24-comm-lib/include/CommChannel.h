@@ -309,10 +309,11 @@ private:
 		for(Sequence seq = outbound.tail; outbound.head != seq; ++seq)
 		{
 			BufferAccessor accessor(outbound.bufferAt(seq));
-			const uint32_t &frameTimestamp = accessor.template take<uint32_t>();
+			uint32_t &frameTimestamp = accessor.template take<uint32_t>();
 			uint32_t delay = currentMicros - frameTimestamp;
 			if(delay >= timeoutMicros)
 			{
+				frameTimestamp = currentMicros;
 				write(accessor, seq);
 			}
 		}

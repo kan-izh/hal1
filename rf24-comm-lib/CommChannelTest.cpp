@@ -181,6 +181,8 @@ namespace
 		EXPECT_CALL(timeSource, currentMicros()).WillRepeatedly(Return(BASE_TIME + testSubject1->getTimeoutMicros()));
 		testSubject1->processIdle();
 		connection12.transfer(1);//re-send
+		testSubject1->processIdle();
+		connection12.assertNoFrames();//re-send once, wait till next timeout
 		testSubject2->processIdle();
 		connection21.transfer(1);//acked
 	}
