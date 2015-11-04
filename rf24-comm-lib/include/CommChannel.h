@@ -30,6 +30,7 @@ private:
 	static const size_t inboundBufferSize = outboundBufferSize;
 public:
 	typedef ByteBuffer<outboundBufferElemSize> Buffer;
+	typedef typename ByteBuffer<inboundBufferElemSize>::Accessor InboundAccessor;
 	typedef typename Buffer::Accessor BufferAccessor;
 	struct Receiver
 	{
@@ -197,15 +198,21 @@ private:
 		{
 			receiver.restart();
 			joined = true;
+			for(; inboundBuffer.tail != inboundBuffer.head; ++inboundBuffer.tail)
+			{
+				InboundAccessor bufAccessor(inboundBuffer.bufferAt(inboundBuffer.tail));
+				uint8_t &received = bufAccessor.template take<uint8_t>();
+				received = 0;
+			}
 			inboundBuffer.tail = inboundBuffer.head  = senderSequence;
 		}
 		const Sequence posT = senderSequence - inboundBuffer.tail;
 		const Sequence posH = inboundBuffer.head - senderSequence;
 		if (posT < inboundBufferSize)
 		{
-			typename ByteBuffer<inboundBufferElemSize>::Accessor bufAccessor(inboundBuffer.bufferAt(senderSequence));
+			InboundAccessor bufAccessor(inboundBuffer.bufferAt(senderSequence));
 			uint8_t &received = bufAccessor.template take<uint8_t>();
-			if (received == 0)//TODO: What happens old frame received, but not consumed yet?
+			if (received == 0)
 			{
 				bufAccessor.template append<payloadSize>(accessor, accessor.getOffset());
 				Sequence size = inboundBuffer.head - inboundBuffer.tail;
@@ -257,7 +264,7 @@ private:
 		bool consumed = false, firstData = false;
 		for(; inboundBuffer.tail != inboundBuffer.head; ++inboundBuffer.tail)
 		{
-			typename ByteBuffer<inboundBufferElemSize>::Accessor bufAccessor(inboundBuffer.bufferAt(inboundBuffer.tail));
+			InboundAccessor bufAccessor(inboundBuffer.bufferAt(inboundBuffer.tail));
 			uint8_t &received = bufAccessor.template take<uint8_t>();
 			if(received == 0)
 			{

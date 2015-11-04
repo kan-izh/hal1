@@ -341,4 +341,22 @@ namespace
 		connection21.transfer(1);//receiving the ack, but too late, it's re-spawned sender now
 		oneInitFrame(seq);//and should work as usual
 	}
+
+	TEST_F(CommChannelTest, shouldSupportDoubleFirstData)
+	{
+		Sequence seq;
+		EXPECT_CALL(receiver2, restart()).InSequence(seq);//frame
+		EXPECT_CALL(receiver2, restart()).InSequence(seq);//frame dup
+		EXPECT_CALL(receiver2, receive(HasData(someData1)));
+
+		testSubject1->sendFrame(testSubject1->currentFrame()
+				.put(someData1)
+		);
+		connection12.transfer(1);//send
+		EXPECT_CALL(timeSource, currentMicros()).WillRepeatedly(Return(BASE_TIME + testSubject1->getTimeoutMicros()));
+		testSubject1->processIdle();
+		connection12.transfer(1);//re-send as dup
+		testSubject2->processIdle();
+		connection21.transfer(1);//acked
+	}
 }
