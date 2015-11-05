@@ -187,6 +187,25 @@ namespace
 		connection21.transfer(1);//acked
 	}
 
+	TEST_F(CommChannelTest, shouldReSendAcksOnDups)
+	{
+		Sequence seq;
+		oneInitFrame(seq);
+
+		EXPECT_CALL(receiver2, receive(HasData(someData2))).InSequence(seq);
+		testSubject1->sendFrame(testSubject1->currentFrame()
+				.put(someData2)
+		);
+		connection12.transfer(1);//send
+		testSubject2->processIdle();
+		connection21.drop(1);//ack lost
+		EXPECT_CALL(timeSource, currentMicros()).WillRepeatedly(Return(BASE_TIME + testSubject1->getTimeoutMicros()));
+		testSubject1->processIdle();
+		connection12.transfer(1);//re-send
+		testSubject2->processIdle();
+		connection21.transfer(1);//acked
+	}
+
 	TEST_F(CommChannelTest, shouldAckOneFrame)
 	{
 		EXPECT_CALL(receiver2, restart());

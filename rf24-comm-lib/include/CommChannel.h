@@ -75,6 +75,7 @@ public:
 			, timeoutMicros(defaultTimeoutMicros)
 			, joined(false)
 			, initialised(false)
+			, shouldAck(false)
 	{ }
 
 	BufferAccessor currentFrame()
@@ -241,6 +242,7 @@ private:
 		{
 			if(posH < inboundBufferSize)
 			{//received consumed frame, ignoring dupe.
+				shouldAck = true;
 			}
 			else
 			{// overflow, sending nak
@@ -261,7 +263,7 @@ private:
 
 	void consumeInbound()
 	{
-		bool consumed = false, firstData = false;
+		bool firstData = false;
 		for(; inboundBuffer.tail != inboundBuffer.head; ++inboundBuffer.tail)
 		{
 			InboundAccessor bufAccessor(inboundBuffer.bufferAt(inboundBuffer.tail));
@@ -276,7 +278,7 @@ private:
 				firstData = true;
 			}
 			received = 0;
-			consumed = true;
+			shouldAck = true;
 			ByteBuffer<payloadSize> tempPayload;
 			typename ByteBuffer<payloadSize>::Accessor tempAccessor(&tempPayload);
 			tempAccessor.template take<Command>();
@@ -288,9 +290,10 @@ private:
 			const uint32_t timestamp = tempAccessor.template take<uint32_t >();
 			receiver.receive(tempAccessor);
 		}
-		if(consumed)
+		if(shouldAck)
 		{
 			sendAck(inboundBuffer.tail, firstData);
+			shouldAck = false;
 		}
 	}
 
@@ -329,7 +332,7 @@ private:
 		sender.write(payload.getBuf(), payloadSize);
 	}
 private:
-	bool joined, initialised;
+	bool joined, initialised, shouldAck;
 	TimeSource &timeSource;
 	CommChannelOutput &sender;
 	Receiver &receiver;
