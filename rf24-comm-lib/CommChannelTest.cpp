@@ -250,7 +250,6 @@ namespace
 		connection12.transfer(1);//re-send 2
 		testSubject2->processIdle();//consume 2, and cached 3, ack 3
 		connection21.transfer(1);//send ack3
-		connection12.transfer(1);//re-send duplicate 3
 	}
 
 	TEST_F(CommChannelTest, shouldLateJoin)
@@ -310,7 +309,7 @@ namespace
 		connection12.transfer(1);//data
 		testSubject2->processIdle();
 		connection21.transfer(1);//nak
-		connection12.transfer(bufferSize);//all naked
+		connection12.transfer(bufferSize - 1);//all naked, except the last one
 		testSubject2->processIdle();
 		connection21.transfer(1);//all acked
 	}

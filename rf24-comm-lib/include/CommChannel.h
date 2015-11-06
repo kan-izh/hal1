@@ -176,10 +176,23 @@ private:
 			sender.write(payload.getBuf(), payloadSize);
 			return;
 		}
-		for(Sequence seq = nakFrom; seq != outbound.head; ++seq)
+		int bitNumber = -1;//we send the nakFrom always, the mask for frames after.
+		uint8_t mask = 0, bit = 1;
+		for(Sequence seq = nakFrom;
+				seq != outbound.head
+				&& accessor.getOffset() < payloadSize;
+				++seq, ++bitNumber, bit <<= 1)
 		{
-			BufferAccessor data(outbound.bufferAt(seq));
-			write(data, seq);
+			if (bitNumber % 8 == 0)
+			{//first bit in byte
+				mask = accessor.template take<uint8_t>();
+				bit = 1;
+			}
+			if (bitNumber == -1 || !(mask & bit))
+			{
+				BufferAccessor data(outbound.bufferAt(seq));
+				write(data, seq);
+			}
 		}
 	}
 
@@ -258,6 +271,28 @@ private:
 		typename ByteBuffer<payloadSize>::Accessor payloadAccessor(&payload);
 		payloadAccessor.put(cmd_nak);
 		payloadAccessor.put(inboundBuffer.tail);
+		uint8_t mask = 0, bit = 1;
+		int bitNumber = 0;
+		for (Sequence seq = inboundBuffer.tail + Sequence(1U);
+				seq != inboundBuffer.head
+						&& payloadAccessor.getOffset() < payloadSize;
+				++seq, ++bitNumber)
+		{
+			InboundAccessor bufAccessor(inboundBuffer.bufferAt(seq));
+			const uint8_t &received = bufAccessor.template take<uint8_t>();
+			mask |= received != 0 ? bit : 0;
+			bit <<= 1;
+			if (bitNumber % 8 == 7)
+			{//last bit in byte
+				payloadAccessor.put(mask);
+				mask = 0;
+				bit = 1;
+			}
+		}
+		if (mask != 0 && payloadAccessor.getOffset() < payloadSize)
+		{
+			payloadAccessor.put(mask);
+		}
 		payloadAccessor.clear();
 		sender.write(payload.getBuf(), payloadSize);
 	}
