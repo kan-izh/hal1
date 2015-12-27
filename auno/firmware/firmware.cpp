@@ -27,7 +27,7 @@ void dump(const char *what, uint8_t const *buf, uint8_t len)
 	Serial.print(what);
 	for (int i = 0; i < len; ++i)
 	{
-		Serial.print((buf[i] & 0xf0) / 0x0f, 16);
+		Serial.print(buf[i] >> 8, 16);
 		Serial.print(buf[i] & 0x0f, 16);
 	}
 	Serial.println();
@@ -61,7 +61,6 @@ struct RF24Output : CommChannelOutput
 		radio.stopListening();
 		radio.write(buf, len, true);
 		radio.startListening();
-		delayMicroseconds(250);
 	}
 };
 
