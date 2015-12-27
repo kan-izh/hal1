@@ -234,12 +234,14 @@ namespace
 				.put(someData1)
 		);
 		connection12.transfer(1);//send 1
+		testSubject2->processIdle();//consume 1
+		connection21.transfer(1);//ack 1
+
 		testSubject1->sendFrame(testSubject1->currentFrame()
 				.put(someData2)
 		);
-		testSubject2->processIdle();//consume 1
-		connection21.transfer(1);//ack 1
 		connection12.drop(1);//drop 2
+
 		testSubject1->sendFrame(testSubject1->currentFrame()
 				.put(someData3)
 		);
@@ -376,6 +378,26 @@ namespace
 		EXPECT_CALL(timeSource, currentMicros()).WillRepeatedly(Return(BASE_TIME + testSubject1->getTimeoutMicros()));
 		testSubject1->processIdle();
 		connection12.transfer(1);//re-send as dup
+		testSubject2->processIdle();
+		connection21.transfer(1);//acked
+	}
+
+	TEST_F(CommChannelTest, shouldReplaceFirstData)
+	{
+		Sequence seq;
+		EXPECT_CALL(receiver2, restart()).InSequence(seq);//frame 2
+		EXPECT_CALL(receiver2, receive(HasData(someData2)));
+		testSubject1->sendFrame(testSubject1->currentFrame()
+				.put(someData1)
+		);
+		connection12.drop(1);//drop 1
+		testSubject1->sendFrame(testSubject1->currentFrame()
+				.put(someData2)
+		);
+		connection12.drop(1);//drop 2
+		EXPECT_CALL(timeSource, currentMicros()).WillRepeatedly(Return(BASE_TIME + testSubject1->getTimeoutMicros()));
+		testSubject1->processIdle();
+		connection12.transfer(1);//re-send 2
 		testSubject2->processIdle();
 		connection21.transfer(1);//acked
 	}

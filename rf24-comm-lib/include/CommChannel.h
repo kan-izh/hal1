@@ -81,7 +81,7 @@ public:
 
 	BufferAccessor currentFrame()
 	{
-		BufferAccessor accessor(outbound.bufferAt(outbound.head));
+		BufferAccessor accessor(outbound.bufferAt(initialised ? outbound.head : outbound.tail));
 		accessor.put(timeSource.currentMicros());
 		return accessor;
 	}
@@ -89,6 +89,8 @@ public:
 	void sendFrame(BufferAccessor &accessor)
 	{
 		accessor.clear();
+		if(!initialised)
+			outbound.head = outbound.tail;
 		write(accessor, outbound.head);
 		++outbound.head;
 	}
