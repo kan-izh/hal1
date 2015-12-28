@@ -59,9 +59,9 @@ private:
 				, tail(0)
 		{ }
 
-		Elem *bufferAt(const Sequence seq)
+		Elem &bufferAt(const Sequence seq)
 		{
-			return buffer + seq % size;
+			return buffer[seq % size];
 		}
 
 		Elem buffer[size];
@@ -81,7 +81,9 @@ public:
 
 	BufferAccessor currentFrame()
 	{
-		BufferAccessor accessor(outbound.bufferAt(initialised ? outbound.head : outbound.tail));
+		OutboundElem &elem = outbound.bufferAt(initialised ? outbound.head : outbound.tail);
+		elem.retries = 0;
+		BufferAccessor accessor(&elem.buffer);
 		accessor.put(timeSource.currentMicros());
 		return accessor;
 	}
@@ -192,7 +194,7 @@ private:
 			}
 			if (bitNumber == -1 || !(mask & bit))
 			{
-				BufferAccessor data(outbound.bufferAt(seq));
+				BufferAccessor data(&outbound.bufferAt(seq).buffer);
 				write(data, seq);
 			}
 		}
@@ -217,7 +219,7 @@ private:
 			joined = true;
 			for(; inboundBuffer.tail != inboundBuffer.head; ++inboundBuffer.tail)
 			{
-				InboundAccessor bufAccessor(inboundBuffer.bufferAt(inboundBuffer.tail));
+				InboundAccessor bufAccessor(&inboundBuffer.bufferAt(inboundBuffer.tail));
 				uint8_t &received = bufAccessor.template take<uint8_t>();
 				received = 0;
 			}
@@ -227,7 +229,7 @@ private:
 		const Sequence posH = inboundBuffer.head - senderSequence;
 		if (posT < inboundBufferSize)
 		{
-			InboundAccessor bufAccessor(inboundBuffer.bufferAt(senderSequence));
+			InboundAccessor bufAccessor(&inboundBuffer.bufferAt(senderSequence));
 			uint8_t &received = bufAccessor.template take<uint8_t>();
 			if (received == 0)
 			{
@@ -280,7 +282,7 @@ private:
 						&& payloadAccessor.getOffset() < payloadSize;
 				++seq, ++bitNumber)
 		{
-			InboundAccessor bufAccessor(inboundBuffer.bufferAt(seq));
+			InboundAccessor bufAccessor(&inboundBuffer.bufferAt(seq));
 			const uint8_t &received = bufAccessor.template take<uint8_t>();
 			mask |= received != 0 ? bit : 0;
 			bit <<= 1;
@@ -304,7 +306,7 @@ private:
 		bool firstData = false;
 		for(; inboundBuffer.tail != inboundBuffer.head; ++inboundBuffer.tail)
 		{
-			InboundAccessor bufAccessor(inboundBuffer.bufferAt(inboundBuffer.tail));
+			InboundAccessor bufAccessor(&inboundBuffer.bufferAt(inboundBuffer.tail));
 			uint8_t &received = bufAccessor.template take<uint8_t>();
 			if(received == 0)
 			{
@@ -349,12 +351,13 @@ private:
 	{
 		for(Sequence seq = outbound.tail; outbound.head != seq; ++seq)
 		{
-			BufferAccessor accessor(outbound.bufferAt(seq));
+			OutboundElem &elem = outbound.bufferAt(seq);
+			BufferAccessor accessor(&elem.buffer);
 			uint32_t &frameTimestamp = accessor.template take<uint32_t>();
 			uint32_t delay = currentMicros - frameTimestamp;
-			if(delay >= timeoutMicros)
+			if(delay >= timeoutMicros * (elem.retries + 1))
 			{
-				frameTimestamp = currentMicros;
+				++elem.retries;
 				write(accessor, seq);
 			}
 		}
@@ -370,13 +373,18 @@ private:
 		sender.write(payload.getBuf(), payloadSize);
 	}
 private:
+	struct OutboundElem
+	{
+		uint8_t retries;
+		Buffer buffer;
+	};
 	bool joined, initialised, shouldAck;
 	TimeSource &timeSource;
 	CommChannelOutput &sender;
 	Receiver &receiver;
 
 	ByteBuffer<payloadSize> inbound;
-	RingBuffer<Buffer, outboundBufferSize> outbound;
+	RingBuffer<OutboundElem, outboundBufferSize> outbound;
 	RingBuffer<ByteBuffer<inboundBufferElemSize>, inboundBufferSize> inboundBuffer;
 	uint32_t timeoutMicros;
 };
