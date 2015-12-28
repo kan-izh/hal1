@@ -14,3 +14,4 @@ add_executable (auno-gw
 	${RPI_RF24_DIR}/RF24.cpp
 	${RPI_RF24_DIR}/RF24.h
 )
+target_link_libraries(auno-gw rt)

@@ -1,5 +1,6 @@
 #include <cstdlib>
 #include <iostream>
+#include <time.h>
 
 #include <RF24.h>
 #include "../conf/rf-comm.h"
@@ -12,7 +13,9 @@ struct RpiTimeSource : TimeSource
 {
 	virtual uint32_t currentMicros()
 	{
-		return millis() * 1000;
+		timespec ts;
+		clock_gettime(CLOCK_REALTIME, &ts);
+		return ts.tv_nsec / 1000U + ts.tv_sec * 1000000U;
 	}
 };
 
