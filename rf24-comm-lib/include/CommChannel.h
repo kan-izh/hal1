@@ -40,7 +40,9 @@ public:
 	};
 
 private:
-	static const int defaultTimeoutMicros = 10000;
+	static const uint32_t defaultTimeoutMicros = 10000;
+	static const int MAX_RESEND_BATCH = 4;
+	static const uint8_t MAX_RETRIES = 200;
 	static const Command cmd_data = 1;
 	static const Command cmd_ack = 2;
 	static const Command cmd_nak = 3;
@@ -158,11 +160,6 @@ private:
 
 	void inboundNakOverflow(typename ByteBuffer<payloadSize>::Accessor &accessor)
 	{
-		const Sequence &badNak = accessor.template take<Sequence>();
-		if (badNak != inboundBuffer.tail)
-		{
-			return;// not our nak
-		}
 		joined = false;
 	}
 
@@ -349,6 +346,7 @@ private:
 
 	void resendNotAckedFrames(uint32_t currentMicros)
 	{
+		int i=0;
 		for(Sequence seq = outbound.tail; outbound.head != seq; ++seq)
 		{
 			OutboundElem &elem = outbound.bufferAt(seq);
@@ -357,8 +355,13 @@ private:
 			uint32_t delay = currentMicros - frameTimestamp;
 			if(delay >= timeoutMicros * (elem.retries + 1))
 			{
-				++elem.retries;
-				write(accessor, seq);
+				if(++i < MAX_RESEND_BATCH)
+					write(accessor, seq);
+				if(++elem.retries > MAX_RETRIES)
+				{
+					initialised = false;
+					break;
+				}
 			}
 		}
 	}
