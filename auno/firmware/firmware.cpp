@@ -19,15 +19,18 @@ struct ArduinoTimeSource : TimeSource
 };
 
 ArduinoTimeSource timeSource;
+bool dumpEnabled = false;
 
 void dump(const char *what, uint8_t const *buf, uint8_t len)
 {
+	if(!dumpEnabled)
+		return;
 	Serial.print(timeSource.currentMicros());
 	Serial.print(" ");
 	Serial.print(what);
 	for (int i = 0; i < len; ++i)
 	{
-		Serial.print(buf[i] >> 8, 16);
+		Serial.print(buf[i] >> 4, 16);
 		Serial.print(buf[i] & 0x0f, 16);
 	}
 	Serial.println();
@@ -57,7 +60,7 @@ struct RF24Output : CommChannelOutput
 
     virtual void write(uint8_t const *buf, uint8_t len)
 	{
-//		dump("Send: ", buf, len);
+		dump("Send: ", buf, len);
 		radio.stopListening();
 		radio.write(buf, len, true);
 		radio.startListening();
@@ -78,6 +81,7 @@ int main()
 {
 	init();
     Serial.begin(115200);
+	pinMode(7, INPUT);
 
 	RF24 radio(RF_cepin, RF_cspin);
 	radio.begin();
@@ -100,6 +104,7 @@ int main()
 		listenRf(radio, channel);
 		channel.processIdle();
 		schedule(radio, channel);
+		dumpEnabled = digitalRead(7) == LOW;
     }
 	return 0;
 }
@@ -109,7 +114,7 @@ void listenRf(RF24 &radio, ArduinoCommChannel &channel)
 	while(radio.available())
 	{
 		radio.read(channel.getBuf(), channel.getBufSize());
-//		dump("Recv: ", channel.getBuf(), channel.getBufSize());
+		dump("Recv: ", channel.getBuf(), channel.getBufSize());
 		channel.processBuf();
 	}
 }
