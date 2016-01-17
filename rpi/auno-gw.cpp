@@ -3,6 +3,7 @@
 #include <time.h>
 
 #include <RF24.h>
+#include <stdio.h>
 #include "../conf/rf-comm.h"
 #include "../conf/messages.h"
 #include "CommChannel.h"
