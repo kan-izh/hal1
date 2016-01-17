@@ -28,7 +28,7 @@ void dump(const char *what, uint8_t const *buf, uint8_t len)
 	printf("%u %s", timeSource.currentMicros(), what);
 	for (int i = 0; i < len; ++i)
 	{
-		printf("%02x", int(buf[i]));
+		printf("%02X", int(buf[i]));
 	}
 	printf("\n");
 
