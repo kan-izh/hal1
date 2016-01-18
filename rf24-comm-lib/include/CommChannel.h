@@ -195,6 +195,8 @@ private:
 				write(data, seq);
 			}
 		}
+		// Assume that everything before NAKed is acked.
+		outbound.tail = nakFrom;
 	}
 
 	void inboundAck(typename ByteBuffer<payloadSize>::Accessor &accessor, const bool firstAck)

@@ -393,4 +393,40 @@ namespace
 		testSubject2->processIdle();
 		connection21.transfer(1);//acked
 	}
+
+	TEST_F(CommChannelTest, shouldAckFromNak)
+	{
+		Sequence seq;
+		oneInitFrame(seq);
+		testSubject1->sendFrame(testSubject1->currentFrame()
+				.put(someData1)
+		);
+		testSubject1->sendFrame(testSubject1->currentFrame()
+				.put(someData2)
+		);
+		testSubject1->sendFrame(testSubject1->currentFrame()
+				.put(someData3)
+		);
+		connection12.transfer(1);//transfer 1
+		EXPECT_CALL(receiver2, receive(HasData(someData1))).InSequence(seq);
+		testSubject2->processIdle();
+		connection21.drop(1);//ack lost
+
+		connection12.drop(1);//lost 2
+		connection12.transfer(1);//transfer 3
+		testSubject2->processIdle();
+		connection21.transfer(1);//nak 2
+		connection12.transfer(1);//re-send 2 by nak
+		EXPECT_CALL(receiver2, receive(HasData(someData2))).InSequence(seq);
+		EXPECT_CALL(receiver2, receive(HasData(someData3))).InSequence(seq);
+		testSubject2->processIdle();//consume 2 and cached 3, ack 3
+
+		connection21.drop(1);//ack lost
+		// timeout passed, but ack is still not received
+		EXPECT_CALL(timeSource, currentMicros()).WillRepeatedly(Return(BASE_TIME + testSubject1->getTimeoutMicros()));
+		testSubject1->processIdle();
+		connection12.transfer(2);//re-send 2 and 3 by timeout
+		testSubject2->processIdle();//ignore dups, ack 3
+		connection21.transfer(1);//acked
+	}
 }
