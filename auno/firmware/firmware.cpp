@@ -69,7 +69,8 @@ struct RF24Output : CommChannelOutput
 };
 
 const unsigned long heartbeatIntervalMs = 25;
-unsigned long timeMs = 0;
+unsigned long timeMs = millis();
+unsigned long lastIrReceivedTime = millis();
 
 void schedule(RF24 &radio, ArduinoCommChannel &publisher);
 void listenRf(RF24 &radio, ArduinoCommChannel &subscriber);
@@ -112,7 +113,6 @@ int main()
 		listenRf(radio, channel);
 		channel.processIdle();
 		schedule(radio, channel);
-		irRemote(channel);
 		dumpEnabled = digitalRead(7) == LOW;
     }
 	return 0;
@@ -136,6 +136,7 @@ void schedule(RF24 &radio, ArduinoCommChannel &channel)
         timeMs = currentTime;
 		sendAnalogRead(channel, TEMPERATURE_SENSOR);
     }
+	irRemote(channel);
 }
 
 void sendAnalogRead(ArduinoCommChannel &channel, const uint8_t pin)
@@ -149,6 +150,9 @@ void sendAnalogRead(ArduinoCommChannel &channel, const uint8_t pin)
 
 void irRemote(ArduinoCommChannel &channel)
 {
+	const unsigned long current = millis();
+	if(current - lastIrReceivedTime < 100)
+		return;
 	if(irRecv.decode(&results))
 	{
 		uint32_t value = (uint32_t) results.value;
@@ -157,5 +161,6 @@ void irRemote(ArduinoCommChannel &channel)
 		channel.sendFrame(channel.currentFrame()
 				.put(MESSAGE_IR_COMMAND)
 				.put(value));
+		lastIrReceivedTime = current;
 	}
 }
