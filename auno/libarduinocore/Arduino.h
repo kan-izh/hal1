@@ -6,6 +6,12 @@
 #include <string.h>
 #include <math.h>
 
+#ifdef ARDUINO
+#include <avr/pgmspace.h>
+#include <avr/io.h>
+#include <avr/interrupt.h>
+#endif
+
 #include "binary.h"
 
 #ifdef __cplusplus

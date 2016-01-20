@@ -4,6 +4,7 @@ Project(HAL1)
 
 SET(NANOPB_DIR ${HAL1_SOURCE_DIR}/3rd/nanopb)
 SET(RF24_DIR ${HAL1_SOURCE_DIR}/3rd/RF24)
+SET(IrRemote_DIR ${HAL1_SOURCE_DIR}/3rd/Arduino-IRremote)
 SET(RPI_RF24_DIR ${RF24_DIR})
 
 enable_testing()

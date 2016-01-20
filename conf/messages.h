@@ -4,6 +4,7 @@
 #include <stdint.h>
 
 const uint8_t MESSAGE_ANALOG_READ = 1U;
+const uint8_t MESSAGE_IR_COMMAND = 2U;
 const uint8_t TEMPERATURE_SENSOR = 0;
 
 #endif //HAL1_MESSAGES_H

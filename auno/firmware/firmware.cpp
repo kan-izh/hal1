@@ -1,5 +1,6 @@
-#include <RF24.h>
 #include "Arduino.h"
+#include <RF24.h>
+#include <IRremote.h>
 #include "HardwareSerial.h"
 #include "rf-settings.h"
 #include "../../conf/messages.h"
@@ -77,11 +78,18 @@ void sendAnalogRead(ArduinoCommChannel &channel, const uint8_t i);
 
 bool work = true;
 
+IRrecv irRecv(6);
+
+decode_results results;
+
+void irRemote(ArduinoCommChannel &channel);
+
 int main()
 {
 	init();
     Serial.begin(115200);
 	pinMode(7, INPUT);
+	irRecv.enableIRIn();
 
 	RF24 radio(RF_cepin, RF_cspin);
 	radio.begin();
@@ -104,6 +112,7 @@ int main()
 		listenRf(radio, channel);
 		channel.processIdle();
 		schedule(radio, channel);
+		irRemote(channel);
 		dumpEnabled = digitalRead(7) == LOW;
     }
 	return 0;
@@ -136,4 +145,17 @@ void sendAnalogRead(ArduinoCommChannel &channel, const uint8_t pin)
 				.put(MESSAGE_ANALOG_READ)
 				.put(pin)
 				.put(value));
+}
+
+void irRemote(ArduinoCommChannel &channel)
+{
+	if(irRecv.decode(&results))
+	{
+		uint32_t value = (uint32_t) results.value;
+		irRecv.resume();
+
+		channel.sendFrame(channel.currentFrame()
+				.put(MESSAGE_IR_COMMAND)
+				.put(value));
+	}
 }

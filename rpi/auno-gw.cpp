@@ -79,6 +79,11 @@ struct RfReceiver : RfCommChannel::Receiver
 		}
 	}
 
+	void messageIrCommand(const uint32_t &value)
+	{
+		printf("IR: %08X\n", value);
+	}
+
 	virtual void receive(Accessor &input)
 	{
 		currentStrike++;
@@ -90,6 +95,12 @@ struct RfReceiver : RfCommChannel::Receiver
 				const uint8_t &pin = input.template take<uint8_t>();
 				const uint16_t &value = input.template take<uint16_t>();
 				messageAnalogRead(pin, value);
+				break;
+			}
+			case MESSAGE_IR_COMMAND:
+			{
+				const uint32_t &value = input.template take<uint32_t>();
+				messageIrCommand(value);
 				break;
 			}
 			default:

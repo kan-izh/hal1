@@ -11,3 +11,6 @@
 [submodule "3rd/gmock"]
 	path = 3rd/gmock
 	url = https://github.com/kan-izh/googlemock.git
+[submodule "3rd/Arduino-IRremote"]
+	path = 3rd/Arduino-IRremote
+	url = https://github.com/z3t0/Arduino-IRremote.git
