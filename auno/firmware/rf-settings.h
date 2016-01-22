@@ -4,8 +4,8 @@
 #include "../../conf/rf-comm.h"
 
 
-const uint8_t RF_cepin = 8;
-const uint8_t RF_cspin = 9;
+const uint8_t RF_cepin = 9;
+const uint8_t RF_cspin = 10;
 const uint8_t *RF_address_read = RF_COMM_ADDRESS_RPI_TO_ARDUINO;
 const uint8_t *RF_address_write = RF_COMM_ADDRESS_ARDUINO_TO_RPI;
 const uint8_t RF_channel = RF_COMM_CHANNEL_ARDUINO_TO_RPI;
